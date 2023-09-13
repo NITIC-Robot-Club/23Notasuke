@@ -89,7 +89,7 @@ int main(void){
             sendData(32000, 32000);
         }
         else if(batu){
-            sendData(0, 0);
+            sendData(-32000, -32000);
         }
         else sendData(0, 0);
     }
