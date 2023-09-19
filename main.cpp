@@ -1,9 +1,20 @@
 #include "mbed.h"
 #include "PS3.h"
 #include <cstdint>
+#include <cstdio>
+#include "PIDcontroller.h"
+
+const float kp = 0.1;
+const float ki = 0.001;
+const float kd = 0.0;
+
+// 上昇に必要な回転数
+const int N = 10;
 
 PS3     ps3(A0, A1);
 RawCAN  can(D4, D10, 1000000);
+PID     pid(kp, ki, kd, 0.050);
+Ticker  getter;
 
 CircularBuffer<CANMessage, 32> queue;
 
@@ -35,7 +46,7 @@ void datachange(unsigned ID, struct C610Data *C610, CANMessage *msg){
         C610->counts = uint16_t((msg->data[0] << 8) | msg->data[1]);
         C610->rpm = int16_t((msg->data[2] << 8) | msg->data[3]);
         C610->current = int16_t((msg->data[4] << 8) | msg->data[5]);
-        printf("%d %d %d\n",C610->counts, C610->rpm, C610->current);
+        // printf("%d %d %d\n",C610->counts, C610->rpm, C610->current);
     }
 }
 
@@ -72,10 +83,20 @@ void sendData(const int32_t torqu0, const int32_t torqu1){
 }
 
 
-bool maru,batu;
+bool maru,batu,ue,sita;
 
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
+    getter.attach(getdata, 10ms);
+
+    int pulse = 0;
+    int newpulse = 0;
+
+    // 1で上昇、2で下降（ホンマか？）
+    int wise = 0;
+    int circle = 0;
+
+    bool pid_flag = true;
 
     struct C610Data M1;
     M1.ID = 0x201;
@@ -85,17 +106,82 @@ int main(void){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
         }
-        if(maru){
-            sendData(32000, 32000);
+        printf("%d %d %d", M1.counts, M1.rpm, M1.current);  
+        pulse = newpulse;
+        newpulse = M1.counts;
+
+
+        if(newpulse == 2){
+            if(wise == 0){
+                
+            }else if(wise == 1){
+                circle++;
+            }else{
+                circle--;
+            }
         }
-        else if(batu){
-            sendData(-32000, -32000);
+
+        if(circle == N){
+            int pidcounts;
+
+            // 最大値がわかんなくて泣いてる
+            // 最大値に近かったら引いてPIDに無理無理突っ込め
+            while(pid_flag){
+                if(batu) break;
+                if(M1.counts >= 8000 - 500){
+                    pidcounts = M1.counts - 8000;
+                }else{
+                    pidcounts = M1.counts;
+                }
+
+                pid.setInputLimits(M1.counts-500, pidcounts+500);
+                pid.setOutputLimits(8000, 16000);
+                pid.setSetPoint(newpulse);
+                pid.setProcessValue(pidcounts);
+
+                sendData(pid.compute(),0);
+            }
+
+        }else{
+            if(ue){
+                sendData(32000, 0);
+                wise = 1;
+            }
+            else if(sita){
+                sendData(-32000, 0);
+                wise = 2;
+            }
+            else{
+                wise = 0;
+                int pidcounts;
+
+                // 最大値がわかんなくて泣いてる
+                // 最大値に近かったら引いてPIDに無理無理突っ込め
+                while(pid_flag){
+                    if(batu) break;
+                    if(M1.counts >= 8000 - 500){
+                        pidcounts = M1.counts - 8000;
+                    }else{
+                        pidcounts = M1.counts;
+                    }
+
+                    pid.setInputLimits(M1.counts-500, pidcounts+500);
+                    pid.setOutputLimits(-16000, 16000);
+                    pid.setSetPoint(newpulse);
+                    pid.setProcessValue(pidcounts);
+
+                    sendData(pid.compute(),0);
+                }
+            }
+
         }
-        else sendData(0, 0);
     }
 }
 
 void getdata(void){
     maru = ps3.getButtonState(PS3::maru);
     batu = ps3.getButtonState(PS3::batu);
+
+    ue = ps3.getButtonState(PS3::ue);
+    sita = ps3.getButtonState(PS3::sita);
 }
