@@ -111,7 +111,7 @@ int main(void){
         newpulse = M1.counts;
 
 
-        if(newpulse == 2){
+        if(newpulse == 0){
             if(wise == 0){
                 
             }else if(wise == 1){
@@ -165,7 +165,7 @@ int main(void){
                         pidcounts = M1.counts;
                     }
 
-                    pid.setInputLimits(M1.counts-500, pidcounts+500);
+                    pid.setInputLimits(pidcounts-500, pidcounts+500);
                     pid.setOutputLimits(-16000, 16000);
                     pid.setSetPoint(newpulse);
                     pid.setProcessValue(pidcounts);
