@@ -9,17 +9,16 @@ const float ki = 0.001;
 const float kd = 0.0;
 
 // 上昇に必要な回転数
-const int N = 10;
+const int N = 1000000000;
 
-PS3     ps3(A0, A1);
-RawCAN  can(D4, D10, 1000000);
+RawCAN  can(D10, D2, 1000000);
 PID     pid(kp, ki, kd, 0.050);
 Ticker  getter;
 
 CircularBuffer<CANMessage, 32> queue;
 
+UnbufferedSerial pc(USBTX, USBRX);
 
-void getdata(void);
 
 char RcvData[8] = {0x00};
 
@@ -41,11 +40,11 @@ void canListen(){
     }
 }
 
-void datachange(unsigned ID, struct C610Data *C610, CANMessage *msg){
-    if(ID == msg->id){
-        C610->counts = uint16_t((msg->data[0] << 8) | msg->data[1]);
-        C610->rpm = int16_t((msg->data[2] << 8) | msg->data[3]);
-        C610->current = int16_t((msg->data[4] << 8) | msg->data[5]);
+void datachange(unsigned ID, struct C610Data *C610, CANMessage *Rcvmsg){
+    if(ID == Rcvmsg->id){
+        C610->counts = uint16_t((Rcvmsg->data[0] << 8) | Rcvmsg->data[1]);
+        C610->rpm = int16_t((Rcvmsg->data[2] << 8) | Rcvmsg->data[3]);
+        C610->current = int16_t((Rcvmsg->data[4] << 8) | Rcvmsg->data[5]);
         // printf("%d %d %d\n",C610->counts, C610->rpm, C610->current);
     }
 }
@@ -87,7 +86,6 @@ bool maru,batu,ue,sita;
 
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
-    getter.attach(getdata, 10ms);
 
     int pulse = 0;
     int newpulse = 0;
@@ -105,13 +103,15 @@ int main(void){
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
+            // sendData(32000, 0);
         }
-        printf("%d %d %d", M1.counts, M1.rpm, M1.current);  
+        // printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
+        // printf("IN: %d %d\n", up.read(),down.read());
         pulse = newpulse;
         newpulse = M1.counts;
 
 
-        if(newpulse == 0){
+        if(newpulse > 1000 && newpulse < 3000){
             if(wise == 0){
                 
             }else if(wise == 1){
@@ -120,68 +120,69 @@ int main(void){
                 circle--;
             }
         }
+        printf("%d\n",circle);
 
-        if(circle == N){
-            int pidcounts;
+        // if(circle == N){
+        //     int pidcounts;
 
-            // 最大値がわかんなくて泣いてる
-            // 最大値に近かったら引いてPIDに無理無理突っ込め
-            while(pid_flag){
-                if(batu) break;
-                if(M1.counts >= 8000 - 500){
-                    pidcounts = M1.counts - 8000;
-                }else{
-                    pidcounts = M1.counts;
+        //     // 最大値がわかんなくて泣いてる
+        //     // 最大値に近かったら引いてPIDに無理無理突っ込め
+        //     while(pid_flag){
+        //         if(batu) break;
+        //         if(M1.counts >= 8000 - 500){
+        //             pidcounts = M1.counts - 8000;
+        //         }else{
+        //             pidcounts = M1.counts;
+        //         }
+
+        //         pid.setInputLimits(M1.counts-500, pidcounts+500);
+        //         pid.setOutputLimits(8000, 16000);
+        //         pid.setSetPoint(newpulse);
+        //         pid.setProcessValue(pidcounts);
+
+        //         sendData(pid.compute(),0);
+        //     }
+
+        // }else{
+                char are;
+				float data;
+				static int unko = 0;
+				unko++;
+				data = 32000 * sin(unko);
+                pc.read(&are,1);
+                if(are == 'a'){
+                    sendData(data, 0);
+                    wise = 1;
                 }
-
-                pid.setInputLimits(M1.counts-500, pidcounts+500);
-                pid.setOutputLimits(8000, 16000);
-                pid.setSetPoint(newpulse);
-                pid.setProcessValue(pidcounts);
-
-                sendData(pid.compute(),0);
-            }
-
-        }else{
-            if(ue){
-                sendData(32000, 0);
-                wise = 1;
-            }
-            else if(sita){
-                sendData(-32000, 0);
-                wise = 2;
-            }
-            else{
-                wise = 0;
-                int pidcounts;
-
-                // 最大値がわかんなくて泣いてる
-                // 最大値に近かったら引いてPIDに無理無理突っ込め
-                while(pid_flag){
-                    if(batu) break;
-                    if(M1.counts >= 8000 - 500){
-                        pidcounts = M1.counts - 8000;
-                    }else{
-                        pidcounts = M1.counts;
-                    }
-
-                    pid.setInputLimits(pidcounts-500, pidcounts+500);
-                    pid.setOutputLimits(-16000, 16000);
-                    pid.setSetPoint(newpulse);
-                    pid.setProcessValue(pidcounts);
-
-                    sendData(pid.compute(),0);
+                else if(are == 'b'){
+                    sendData(-32000, 0);
+                    wise = 2;
+                }else if(are == 'z'){
+                    sendData(0,0);
                 }
-            }
+        //     else{
+        //         wise = 0;
+        //         int pidcounts;
 
-        }
+        //         // 最大値がわかんなくて泣いてる
+        //         // 最大値に近かったら引いてPIDに無理無理突っ込め
+        //         while(pid_flag){
+        //             if(batu) break;
+        //             if(M1.counts >= 8000 - 500){
+        //                 pidcounts = M1.counts - 8000;
+        //             }else{
+        //                 pidcounts = M1.counts;
+        //             }
+
+        //             pid.setInputLimits(pidcounts-500, pidcounts+500);
+        //             pid.setOutputLimits(-16000, 16000);
+        //             pid.setSetPoint(newpulse);
+        //             pid.setProcessValue(pidcounts);
+
+        //             sendData(pid.compute(),0);
+        //         }
+        //     }
+
+        // }
     }
-}
-
-void getdata(void){
-    maru = ps3.getButtonState(PS3::maru);
-    batu = ps3.getButtonState(PS3::batu);
-
-    ue = ps3.getButtonState(PS3::ue);
-    sita = ps3.getButtonState(PS3::sita);
 }
