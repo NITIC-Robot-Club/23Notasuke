@@ -1,6 +1,7 @@
 #include "mbed.h"
 #include <cstdint>
 #include <cstdio>
+#include "PIDcontroller.h"
 
 UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
@@ -33,6 +34,14 @@ struct C610Data{
     int32_t current;
 };
 
+// PID用
+const float kp = 0.1;
+const float ki = 0.001;
+const float kd = 0.0;
+PID pid(kp, kd, ki, 0.050);
+
+const int targetRPM = 100;
+
 // CAN受信用
 void canListen(void);
 
@@ -58,6 +67,9 @@ int main(void){
     M1.ID = 0x201;
     CANMessage Rxmsg;
 
+	pid.setOutputLimits(0, 8000);
+	pid.setInputLimits(0, 500);
+
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -65,24 +77,27 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
+		pid.setProcessValue(M1.rpm);
 
 		pc.read(&are,1);
 		raspPico.read(&are,1);
 
+
 		switch(are){
 			case 'a':	// ゆっくり上げる
-				OutPutCurrent = 3000 * ueLimit;
+				pid.setSetPoint(targetRPM);
 				break;
 			case 'b':	// ゆっくり下げる
-				OutPutCurrent = -3000 * sitaLimit;
+				pid.setSetPoint(-1 * targetRPM);
 				break;
 			case 'q':	// ごっつりオート収穫
 				autoUpDown();
 				break;
 			default:
-				OutPutCurrent = 0;
+				pid.setSetPoint(0);
 				break;
 		}
+		sendData(pid.compute());
     }	
 }
 
@@ -131,15 +146,22 @@ void autoUpDown(void){
 	// まずは初期位置に戻す
 	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
 		while(sitaLimit){
-			sendData(-4000);
+			pid.setSetPoint(-1 * targetRPM);
+			sendData(pid.compute());
 		}
 	}
 
 	while(ueLimit){	// 上限まで上げる
-		sendData(4000);
+		pid.setSetPoint(targetRPM);
+		sendData(pid.compute());
 	}
 
+	// 逆起電力防止のアレ
+	sendData(0);
+	ThisThread::sleep_for(50ms);
+
 	while(sitaLimit){	// 下限まで戻す
-		sendData(-4000);
+		pid.setSetPoint(-1 * targetRPM);
+		sendData(pid.compute());
 	}
 }
