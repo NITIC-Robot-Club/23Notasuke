@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 
-// UnbufferedSerial 	raspPico	(PB_6,PB_7);
+UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
 
 // LED光らせるぜ
@@ -55,7 +55,7 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower){
     *lower = torqu & 0XFF;
 }
 
-void sendData(const int32_t torqu0, const int32_t torqu1){
+void sendData(const int32_t torqu0){
     int16_t t0,t1;
     if(torqu0>32000){
         t0 = 32000;
@@ -64,19 +64,11 @@ void sendData(const int32_t torqu0, const int32_t torqu1){
     }else{
         t0 = torqu0;
     }
-    if(torqu1>32000){
-        t1 = 32000;
-    }else if(torqu1<-32000){
-        t1 = -32000;
-    }else{
-        t1 = torqu1;
-    }
 
     CANMessage msg;
     msg.id = 0x200;
     TorqueToBytes(t0, &msg.data[0], &msg.data[1]);
-    TorqueToBytes(t1, &msg.data[2], &msg.data[4]);
-    for(int i=5; i<8; i++){
+    for(int i=2; i<8; i++){
         msg.data[i] = 0x00;
     }
     can.write(msg);
@@ -85,18 +77,13 @@ void sendData(const int32_t torqu0, const int32_t torqu1){
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
 
-    int pulse = 0;
-    int newpulse = 0;
-
-    // 1で上昇、2で下降（ホンマか？）
-    int wise = 0;
-    int circle = 0;
-
-    bool pid_flag = true;
+	char 	are;
+	int 	OutPutCurrent;
 
     struct C610Data M1;
     M1.ID = 0x201;
     CANMessage Rxmsg;
+
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -104,18 +91,20 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
-		char are;
-		float data;
+
 		pc.read(&are,1);
-		if(are == 'a'){
-			sendData(4000, 0);
-			wise = 1;
+		raspPico.read(&are,1);
+
+		switch(are){
+			case 'a': //ゆっくり上げる
+				OutPutCurrent = 3000 * ueLimit;
+				break;
+			case 'b':
+				OutPutCurrent = -3000 * sitaLimit;
+			
+			default:
+				OutPutCurrent = 0;
+				break;
 		}
-		else if(are == 'b'){
-			sendData(-4000, 0);
-			wise = 2;
-		}else if(are == 'z'){
-			sendData(0,0);
-		}
-    }
+    }	
 }
