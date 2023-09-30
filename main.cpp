@@ -4,25 +4,34 @@
 #include <cstdio>
 #include "PIDcontroller.h"
 
+// PID関連
 const float kp = 0.1;
 const float ki = 0.001;
 const float kd = 0.0;
+PID     pid(kp, ki, kd, 0.050);
 
 // 上昇に必要な回転数
 const int N = 1000000000;
 
-RawCAN  can(D10, D2, 1000000);
-PID     pid(kp, ki, kd, 0.050);
-Ticker  getter;
+// UnbufferedSerial 	raspPico	(PB_6,PB_7);
+UnbufferedSerial	pc(USBTX, USBRX);
 
+// LED光らせるぜ
+PwmOut	LED	(PB_1);
+
+// シザー停止リミットスイッチ
+DigitalIn	ueLimit		(PA_3); //上限
+DigitalIn	sitaLimit	(PA_4); //下限
+
+// 電源基板停止
+DigitalOut	emergency(PB_0);
+
+// パタパタ接続確認LED
+DigitalIn	PataPataState(PA_0);
+
+RawCAN  can(PA_11, PA_12, 1000000);
 CircularBuffer<CANMessage, 32> queue;
-
-UnbufferedSerial 	pc			(PB_6, PB_7);
-PwmOut              LED			(PA_1);
-DigitalIn			ueLimit		(PA_3);
-DigitalIn			sitaLimit	(PA_4);
-
-
+Ticker  getter;
 char RcvData[8] = {0x00};
 
 // CANMessage sendmsg(0x000, TxData, 8, CANData, CANStandard);
@@ -108,7 +117,7 @@ int main(void){
             datachange(M1.ID, &M1, &Rxmsg);
             // sendData(32000, 0);
         }
-        // printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
+        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
         // printf("IN: %d %d\n", up.read(),down.read());
         pulse = newpulse;
         newpulse = M1.counts;
@@ -123,7 +132,7 @@ int main(void){
                 circle--;
             }
         }
-        printf("%d\n",circle);
+        // printf("%d %d\n", ueLimit.read(), sitaLimit.read());
 
         // if(circle == N){
         //     int pidcounts;
