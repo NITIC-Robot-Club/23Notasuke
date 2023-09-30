@@ -17,7 +17,10 @@ Ticker  getter;
 
 CircularBuffer<CANMessage, 32> queue;
 
-UnbufferedSerial pc(USBTX, USBRX);
+UnbufferedSerial 	pc			(PB_6, PB_7);
+PwmOut              LED			(PA_1);
+DigitalIn			ueLimit		(PA_3);
+DigitalIn			sitaLimit	(PA_4);
 
 
 char RcvData[8] = {0x00};
@@ -146,16 +149,13 @@ int main(void){
         // }else{
                 char are;
 				float data;
-				static int unko = 0;
-				unko++;
-				data = 32000 * sin(unko);
                 pc.read(&are,1);
                 if(are == 'a'){
-                    sendData(data, 0);
+                    sendData(4000, 0);
                     wise = 1;
                 }
                 else if(are == 'b'){
-                    sendData(-32000, 0);
+                    sendData(-4000, 0);
                     wise = 2;
                 }else if(are == 'z'){
                     sendData(0,0);
