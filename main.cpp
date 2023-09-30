@@ -18,6 +18,7 @@ DigitalOut	emergency(PB_0);
 // パタパタ接続確認LED
 DigitalIn	PataPataState(PA_0);
 
+// CAN周り
 RawCAN  can(PA_11, PA_12, 1000000);
 CircularBuffer<CANMessage, 32> queue;
 Ticker  getter;
@@ -32,8 +33,59 @@ struct C610Data{
     int32_t current;
 };
 
+// CAN受信用
+void canListen(void);
 
-//  受信割り込み関数
+// 受信データの形式の変更
+void datachange(unsigned ID, struct C610Data *C610, CANMessage *Rcvmsg);
+
+// 電流値を送信用に変換
+void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
+
+// ESCにデータ送信
+void sendData(const int32_t torqu0);
+
+// 自動昇降
+void autoUpDown(void);
+
+int main(void){
+    can.attach(&canListen, CAN::RxIrq);
+
+	char 	are;
+	int 	OutPutCurrent;
+
+    struct C610Data M1;
+    M1.ID = 0x201;
+    CANMessage Rxmsg;
+
+    while(true){
+        while(!queue.empty()){
+            queue.pop(Rxmsg);
+            datachange(M1.ID, &M1, &Rxmsg);
+        }
+        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
+
+
+		pc.read(&are,1);
+		raspPico.read(&are,1);
+
+		switch(are){
+			case 'a':	// ゆっくり上げる
+				OutPutCurrent = 3000 * ueLimit;
+				break;
+			case 'b':	// ゆっくり下げる
+				OutPutCurrent = -3000 * sitaLimit;
+				break;
+			case 'q':	// ごっつりオート収穫
+				autoUpDown();
+				break;
+			default:
+				OutPutCurrent = 0;
+				break;
+		}
+    }	
+}
+
 void canListen(){
     CANMessage Rcvmsg;
     if (can.read(Rcvmsg)){
@@ -74,37 +126,20 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-int main(void){
-    can.attach(&canListen, CAN::RxIrq);
+void autoUpDown(void){
 
-	char 	are;
-	int 	OutPutCurrent;
-
-    struct C610Data M1;
-    M1.ID = 0x201;
-    CANMessage Rxmsg;
-
-    while(true){
-        while(!queue.empty()){
-            queue.pop(Rxmsg);
-            datachange(M1.ID, &M1, &Rxmsg);
-        }
-        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
-
-
-		pc.read(&are,1);
-		raspPico.read(&are,1);
-
-		switch(are){
-			case 'a': //ゆっくり上げる
-				OutPutCurrent = 3000 * ueLimit;
-				break;
-			case 'b':
-				OutPutCurrent = -3000 * sitaLimit;
-			
-			default:
-				OutPutCurrent = 0;
-				break;
+	// まずは初期位置に戻す
+	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
+		while(sitaLimit){
+			sendData(-4000);
 		}
-    }	
+	}
+
+	while(ueLimit){	// 上限まで上げる
+		sendData(4000);
+	}
+
+	while(sitaLimit){	// 下限まで戻す
+		sendData(-4000);
+	}
 }
