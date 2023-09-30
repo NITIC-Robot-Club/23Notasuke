@@ -1,17 +1,6 @@
 #include "mbed.h"
-#include "PS3.h"
 #include <cstdint>
 #include <cstdio>
-#include "PIDcontroller.h"
-
-// PID関連
-const float kp = 0.1;
-const float ki = 0.001;
-const float kd = 0.0;
-PID     pid(kp, ki, kd, 0.050);
-
-// 上昇に必要な回転数
-const int N = 1000000000;
 
 // UnbufferedSerial 	raspPico	(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
@@ -93,9 +82,6 @@ void sendData(const int32_t torqu0, const int32_t torqu1){
     can.write(msg);
 }
 
-
-bool maru,batu,ue,sita;
-
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
 
@@ -115,83 +101,21 @@ int main(void){
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
-            // sendData(32000, 0);
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
-        // printf("IN: %d %d\n", up.read(),down.read());
-        pulse = newpulse;
-        newpulse = M1.counts;
 
-
-        if(newpulse > 1000 && newpulse < 3000){
-            if(wise == 0){
-                
-            }else if(wise == 1){
-                circle++;
-            }else{
-                circle--;
-            }
-        }
-        // printf("%d %d\n", ueLimit.read(), sitaLimit.read());
-
-        // if(circle == N){
-        //     int pidcounts;
-
-        //     // 最大値がわかんなくて泣いてる
-        //     // 最大値に近かったら引いてPIDに無理無理突っ込め
-        //     while(pid_flag){
-        //         if(batu) break;
-        //         if(M1.counts >= 8000 - 500){
-        //             pidcounts = M1.counts - 8000;
-        //         }else{
-        //             pidcounts = M1.counts;
-        //         }
-
-        //         pid.setInputLimits(M1.counts-500, pidcounts+500);
-        //         pid.setOutputLimits(8000, 16000);
-        //         pid.setSetPoint(newpulse);
-        //         pid.setProcessValue(pidcounts);
-
-        //         sendData(pid.compute(),0);
-        //     }
-
-        // }else{
-                char are;
-				float data;
-                pc.read(&are,1);
-                if(are == 'a'){
-                    sendData(4000, 0);
-                    wise = 1;
-                }
-                else if(are == 'b'){
-                    sendData(-4000, 0);
-                    wise = 2;
-                }else if(are == 'z'){
-                    sendData(0,0);
-                }
-        //     else{
-        //         wise = 0;
-        //         int pidcounts;
-
-        //         // 最大値がわかんなくて泣いてる
-        //         // 最大値に近かったら引いてPIDに無理無理突っ込め
-        //         while(pid_flag){
-        //             if(batu) break;
-        //             if(M1.counts >= 8000 - 500){
-        //                 pidcounts = M1.counts - 8000;
-        //             }else{
-        //                 pidcounts = M1.counts;
-        //             }
-
-        //             pid.setInputLimits(pidcounts-500, pidcounts+500);
-        //             pid.setOutputLimits(-16000, 16000);
-        //             pid.setSetPoint(newpulse);
-        //             pid.setProcessValue(pidcounts);
-
-        //             sendData(pid.compute(),0);
-        //         }
-        //     }
-
-        // }
+		char are;
+		float data;
+		pc.read(&are,1);
+		if(are == 'a'){
+			sendData(4000, 0);
+			wise = 1;
+		}
+		else if(are == 'b'){
+			sendData(-4000, 0);
+			wise = 2;
+		}else if(are == 'z'){
+			sendData(0,0);
+		}
     }
 }
