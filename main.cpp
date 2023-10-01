@@ -16,7 +16,7 @@ DigitalIn	sitaLimit	(PA_4); //下限
 DigitalOut	emergency(PB_0);
 
 // パタパタ接続確認LED
-DigitalIn	PataPataState(PA_0);
+InterruptIn	PataPataState(PA_0);
 
 // CAN周り
 RawCAN  can(PA_11, PA_12, 1000000);
@@ -34,19 +34,23 @@ struct C610Data{
 };
 
 // CAN受信用
-void canListen(void);
+void canListen		(void);
 
 // 受信データの形式の変更
-void datachange(unsigned ID, struct C610Data *C610, CANMessage *Rcvmsg);
+void datachange		(unsigned ID, struct C610Data *C610, CANMessage *Rcvmsg);
 
 // 電流値を送信用に変換
-void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
+void TorqueToBytes	(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 
 // ESCにデータ送信
-void sendData(const int32_t torqu0);
+void sendData		(const int32_t torqu0);
 
 // 自動昇降
-void autoUpDown(void);
+void autoUpDown		(void);
+
+// 駆動系オンオフ
+void enable_supply	(void);
+void disable_supply	(void);
 
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
@@ -60,6 +64,8 @@ int main(void){
 
 	// 電源をオフにしておく
 	emergency.write(0);
+	PataPataState.rise(enable_supply);
+	PataPataState.fall(disable_supply);
 
     while(true){
         while(!queue.empty()){
@@ -151,4 +157,12 @@ void autoUpDown(void){
 	while(sitaLimit){	// 下限まで戻す
 		sendData(-4000);
 	}
+}
+
+void enable_supply(void){
+	emergency.write(0);
+}
+
+void disable_supply(void){
+	emergency.write(1);
 }
