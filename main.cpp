@@ -58,6 +58,9 @@ int main(void){
     M1.ID = 0x201;
     CANMessage Rxmsg;
 
+	// 電源をオフにしておく
+	emergency.write(0);
+
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -65,6 +68,12 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
+		// 信号が来たら電源オン
+		if(!PataPataState){
+			emergency.write(0);
+		}else{
+			emergency.write(1);
+		}
 
 		pc.read(&are,1);
 		raspPico.read(&are,1);
