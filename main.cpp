@@ -74,13 +74,6 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
-		// 信号が来たら電源オン
-		if(!PataPataState){
-			emergency.write(0);
-		}else{
-			emergency.write(1);
-		}
-
 		pc.read(&are,1);
 		raspPico.read(&are,1);
 
