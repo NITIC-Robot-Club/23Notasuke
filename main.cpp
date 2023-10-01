@@ -70,34 +70,42 @@ int main(void){
 	pid.setOutputLimits(0, 8000);
 	pid.setInputLimits(0, 500);
 
+	LED.write(1);
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
         }
-        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
-		pid.setProcessValue(M1.rpm);
+		// pid.setProcessValue(M1.rpm);
 
-		pc.read(&are,1);
-		raspPico.read(&are,1);
+		// pc.read(&are,1);
+		// raspPico.read(&are,1);
 
 
-		switch(are){
-			case 'a':	// ゆっくり上げる
-				pid.setSetPoint(targetRPM);
-				break;
-			case 'b':	// ゆっくり下げる
-				pid.setSetPoint(-1 * targetRPM);
-				break;
-			case 'q':	// ごっつりオート収穫
-				autoUpDown();
-				break;
-			default:
-				pid.setSetPoint(0);
-				break;
-		}
+		// switch(are){
+		// 	case 'a':	// ゆっくり上げる
+		// 		pid.setSetPoint(targetRPM);
+		// 		break;
+		// 	case 'b':	// ゆっくり下げる
+		// 		pid.setSetPoint(-1 * targetRPM);
+		// 		break;
+		// 	case 'q':	// ごっつりオート収穫
+		// 		// autoUpDown();
+		// 		break;
+		// 	default:
+		// 		pid.setSetPoint(0);
+		// 		break;
+		// }
+		float unko = pid.compute();
 		sendData(pid.compute());
+		printf("\n----------------------------\n");
+        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
+		printf("上: %d 下: %d\n", ueLimit.read(),sitaLimit.read());
+		printf("PID: %f\n",unko);
+		printf("リフレクタ: %d\n",PataPataState.read());
+		printf("\n----------------------------\n");
+		ThisThread::sleep_for(500ms);
     }	
 }
 
@@ -141,27 +149,27 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void autoUpDown(void){
+// void autoUpDown(void){
 
-	// まずは初期位置に戻す
-	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
-		while(sitaLimit){
-			pid.setSetPoint(-1 * targetRPM);
-			sendData(pid.compute());
-		}
-	}
+// 	// まずは初期位置に戻す
+// 	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
+// 		while(sitaLimit){
+// 			pid.setSetPoint(-1 * targetRPM);
+// 			sendData(pid.compute());
+// 		}
+// 	}
 
-	while(ueLimit){	// 上限まで上げる
-		pid.setSetPoint(targetRPM);
-		sendData(pid.compute());
-	}
+// 	while(ueLimit){	// 上限まで上げる
+// 		pid.setSetPoint(targetRPM);
+// 		sendData(pid.compute());
+// 	}
 
-	// 逆起電力防止のアレ
-	sendData(0);
-	ThisThread::sleep_for(50ms);
+// 	// 逆起電力防止のアレ
+// 	sendData(0);
+// 	ThisThread::sleep_for(50ms);
 
-	while(sitaLimit){	// 下限まで戻す
-		pid.setSetPoint(-1 * targetRPM);
-		sendData(pid.compute());
-	}
-}
+// 	while(sitaLimit){	// 下限まで戻す
+// 		pid.setSetPoint(-1 * targetRPM);
+// 		sendData(pid.compute());
+// 	}
+// }
