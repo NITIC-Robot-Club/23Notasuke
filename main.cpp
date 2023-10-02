@@ -35,12 +35,12 @@ struct C610Data{
 };
 
 // PID用
-const float kp = 0.1;
+const float kp = 1.0;
 const float ki = 0.001;
-const float kd = 0.0;
-PID pid(kp, kd, ki, 0.050);
+const float kd = 2.0;
+PID pid(kp, kd, ki, 0.05);
 
-const int targetRPM = 100;
+const int targetRPM = 1000;
 
 // CAN受信用
 void canListen(void);
@@ -57,18 +57,20 @@ void sendData(const int32_t torqu0);
 // 自動昇降
 void autoUpDown(void);
 
+void reader(void);
+char are;
+
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
 
-	char 	are;
 	int 	OutPutCurrent;
 
     struct C610Data M1;
     M1.ID = 0x201;
     CANMessage Rxmsg;
 
-	pid.setOutputLimits(0, 8000);
-	pid.setInputLimits(0, 500);
+	pid.setOutputLimits(-8000, 8000);
+	pid.setInputLimits(-18000, 18000);
 
     while(true){
         while(!queue.empty()){
@@ -79,9 +81,12 @@ int main(void){
 
 		pid.setProcessValue(M1.rpm);
 
-		pc.read(&are,1);
-		raspPico.read(&are,1);
 
+		pc.attach(reader, UnbufferedSerial::RxIrq);
+		// pc.read(&are,1);
+		// raspPico.read(&are,1);
+
+		float power;
 
 		switch(are){
 			case 'a':	// ゆっくり上げる
@@ -90,14 +95,17 @@ int main(void){
 			case 'b':	// ゆっくり下げる
 				pid.setSetPoint(-1 * targetRPM);
 				break;
-			case 'q':	// ごっつりオート収穫
-				autoUpDown();
-				break;
-			default:
+			case 'z':	// ごっつりオート収穫
+				// autoUpDown();
 				pid.setSetPoint(0);
 				break;
+			default:
+				// pid.setSetPoint(0);
+				break;
 		}
-		sendData(pid.compute());
+		power = pid.compute();
+		sendData(power);
+        // printf("%f\n",power);
     }	
 }
 
@@ -164,4 +172,8 @@ void autoUpDown(void){
 		pid.setSetPoint(-1 * targetRPM);
 		sendData(pid.compute());
 	}
+}
+
+void reader(void){
+	pc.read(&are, 1);
 }
