@@ -38,7 +38,7 @@ struct C610Data{
 const float kp = 1.0;
 const float ki = 0.001;
 const float kd = 2.0;
-PID pid(kp, kd, ki, 0.05);
+PID pid(kp, ki, kd, 0.05);
 
 const int targetRPM = 1000;
 
