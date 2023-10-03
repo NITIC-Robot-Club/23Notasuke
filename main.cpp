@@ -35,12 +35,13 @@ struct C610Data{
 };
 
 // PID用
-const float kp = 1.0;
-const float ki = 0.001;
-const float kd = 2.0;
-PID pid(kp, ki, kd, 0.05);
-
-const int targetRPM = 1000;
+const float	kp = 1.0;
+const float	ki = 0.001;
+const float	kd = 2.0;
+PID			pid(kp, ki, kd, 0.05);
+const int 	slow_targetRPM = 1000; 	// 手動昇降目標値[rpm]
+const int 	fast_targetRPM = 4000; 	// 自動一定上げ目標値[rpm]
+Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
 
 // CAN受信用
 void canListen(void);
@@ -54,11 +55,18 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 // ESCにデータ送信
 void sendData(const int32_t torqu0);
 
-// 自動昇降
-void autoUpDown(void);
+// 一定上げ
+void autotry(void);
 
+// 最高-最低上下
+void fulltry(void);
+
+// シリアル読み
 void reader(void);
-char are;
+char are;	// 信号入れるやつ
+
+// pid計算機
+void pid_calculater(void);
 
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
@@ -71,6 +79,7 @@ int main(void){
 
 	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
+	calculater.attach(pid_calculater ,10ms);
 
     while(true){
         while(!queue.empty()){
@@ -89,22 +98,23 @@ int main(void){
 		float power;
 
 		switch(are){
-			case 'a':	// ゆっくり上げる
-				pid.setSetPoint(targetRPM);
+			case 'u':	// ゆっくり上げる
+				pid.setSetPoint(slow_targetRPM);
 				break;
-			case 'b':	// ゆっくり下げる
-				pid.setSetPoint(-1 * targetRPM);
+			case 'd':	// ゆっくり下げる
+				pid.setSetPoint(-1 * slow_targetRPM);
 				break;
-			case 'z':	// ごっつりオート収穫
-				// autoUpDown();
-				pid.setSetPoint(0);
+			case 't':	// 一定上げ
+				autotry();
+			case 'f':	// ごっつりオート収穫
+				fulltry();
 				break;
+			case 'g': 	// フタ開閉
+			case 'h':	// 最低点まで下げる
 			default:
 				// pid.setSetPoint(0);
 				break;
 		}
-		power = pid.compute();
-		sendData(power);
         // printf("%f\n",power);
     }	
 }
@@ -149,31 +159,52 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void autoUpDown(void){
+void autotry(void){
+	Timer time;
+	if(!ueLimit){
+		time.start();
+		while(time.elapsed_time() <= 2s && sitaLimit){
+			pid.setSetPoint(-1 * fast_targetRPM);
+		}
+		time.reset();
+		pid.setSetPoint(0);
+		ThisThread::sleep_for(10ms);
+	}
+	time.start();
+	while(time.elapsed_time() <= 2s && ueLimit){
+		pid.setSetPoint(fast_targetRPM);
+	}
+	time.reset();
+	pid.setSetPoint(0);
+}
+
+void fulltry(void){
 
 	// まずは初期位置に戻す
 	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
 		while(sitaLimit){
-			pid.setSetPoint(-1 * targetRPM);
-			sendData(pid.compute());
+			pid.setSetPoint(-1 * fast_targetRPM);
 		}
 	}
 
 	while(ueLimit){	// 上限まで上げる
-		pid.setSetPoint(targetRPM);
-		sendData(pid.compute());
+		pid.setSetPoint(fast_targetRPM);
 	}
 
 	// 逆起電力防止のアレ
-	sendData(0);
+	pid.setSetPoint(0);
 	ThisThread::sleep_for(50ms);
 
 	while(sitaLimit){	// 下限まで戻す
-		pid.setSetPoint(-1 * targetRPM);
-		sendData(pid.compute());
+		pid.setSetPoint(-1 * fast_targetRPM);
 	}
+	pid.setSetPoint(0);
 }
 
 void reader(void){
 	pc.read(&are, 1);
+}
+
+void pid_calculater(void){
+	sendData(pid.compute());
 }
