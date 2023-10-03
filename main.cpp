@@ -60,7 +60,7 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 void sendData(const int32_t torqu0);
 
 // 一定上げ
-void autotry(void);
+void tryer(void);
 
 // 最高-最低上下
 void nullpo(void);
@@ -110,10 +110,10 @@ int main(void){
 			case 'd':	// ゆっくり下げる
 				pid.setSetPoint(-1 * slow_targetRPM);
 				break;
-			case 't':	// 一定上げ
-				autotry();
+			case 't':	// 自動収穫（一定時間上げ下げ）
+				tryer();
 				break;
-			case 'n':	// ごっつりオート収穫
+			case 'n':	// 一定まで上げる
 				nullpo();
 				break;
 			case 'g': 	// フタ開閉
@@ -167,48 +167,46 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void autotry(void){
+void tryer(void){
 	Timer time;
+
+	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
 		time.start();
-		while(time.elapsed_time() <= 2s && sitaLimit){
+		while(time.elapsed_time() <= TIMELIMIT && sitaLimit){
 			pid.setSetPoint(-1 * fast_targetRPM);
 		}
 		time.reset();
 		pid.setSetPoint(0);
 		ThisThread::sleep_for(10ms);
 	}
+
+	// 一定時間上げる or 上限まで上げる
 	time.start();
-	while(time.elapsed_time() <= 2s && ueLimit){
+	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
 		pid.setSetPoint(fast_targetRPM);
 	}
 	time.reset();
+
+	// 一定時間下げる or 下限まで下げる
+	time.start();
+	while(time.elapsed_time() <= TIMELIMIT && sitaLimit){
+		pid.setSetPoint(-1 * fast_targetRPM);
+	}
+	time.reset();
+
 	pid.setSetPoint(0);
 }
 
 void nullpo(void){ // ガッ
 	Timer time;
+
 	time.start();
-	// まずは初期位置に戻す
-	if(!ueLimit){	// 上限だったら一度おろす
-		while(sitaLimit && time.elapsed_time() <= TIMELIMIT){
-			pid.setSetPoint(-1 * fast_targetRPM);
-		}
-		pid.setSetPoint(0);
-		time.reset();
-	}
-	time.start();
-	while(ueLimit && time.elapsed_time() <= TIMELIMIT){	// 1秒上げる
+	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
 		pid.setSetPoint(fast_targetRPM);
 	}
+	time.reset();
 
-	// 逆起電力防止のアレ
-	pid.setSetPoint(0);
-	ThisThread::sleep_for(50ms);
-
-	while(sitaLimit && time.elapsed_time() <= TIMELIMIT){	// 下限まで戻す
-		pid.setSetPoint(-1 * fast_targetRPM);
-	}
 	pid.setSetPoint(0);
 }
 
@@ -220,11 +218,16 @@ void hutaPakaPaka(void){
 
 void goHome(void){
 	Timer time;
+
 	time.start();
-	while(sitaLimit && time.elapsed_time() <= 3s){
+
+	// リミス死亡時のときのために一応時間制御もつけておく
+	// これは収穫時のTIMELIMITとは異なるため注意
+	while(time.elapsed_time() <= 3s && sitaLimit){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
 	time.reset();
+
 	pid.setSetPoint(0);
 }
 
