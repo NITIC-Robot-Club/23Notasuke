@@ -62,7 +62,7 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 // ESCにデータ送信
 void sendData(const int32_t torqu0);
 
-// 一定昇降とか用の時間制限
+// 一定昇降とかの時間制限
 std::chrono::microseconds TIMELIMIT = 1s;
 
 // 一定上げ
@@ -71,8 +71,10 @@ void tryer(void);
 // 最高-最低上下
 void nullpo(void);
 
+// お助けフタ開閉
 void hutaPakaPaka(void);
 
+// シザー最低まで下げる
 void goHome(void);
 
 // pid計算機
