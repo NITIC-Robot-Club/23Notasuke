@@ -19,6 +19,8 @@ DigitalOut	emergency(PB_0);
 // パタパタ接続確認LED
 DigitalIn	PataPataState(PA_0);
 
+PwmOut 		huta_servo(PA_7);
+
 // CAN周り
 RawCAN  can(PA_11, PA_12, 1000000);
 CircularBuffer<CANMessage, 32> queue;
@@ -38,10 +40,10 @@ struct C610Data{
 const float	kp = 1.0;
 const float	ki = 0.001;
 const float	kd = 2.0;
-PID			pid(kp, ki, kd, 0.05);
 const int 	slow_targetRPM = 1000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 4000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
+PID			pid(kp, ki, kd, 0.05);
 
 // CAN受信用
 void canListen(void);
@@ -61,6 +63,10 @@ void autotry(void);
 // 最高-最低上下
 void fulltry(void);
 
+void hutaPakaPaka(void);
+
+void goHome(void);
+
 // シリアル読み
 void reader(void);
 char are;	// 信号入れるやつ
@@ -79,6 +85,7 @@ int main(void){
 
 	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
+	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,10ms);
 
     while(true){
@@ -106,11 +113,14 @@ int main(void){
 				break;
 			case 't':	// 一定上げ
 				autotry();
+				break;
 			case 'f':	// ごっつりオート収穫
 				fulltry();
 				break;
 			case 'g': 	// フタ開閉
+				hutaPakaPaka();
 			case 'h':	// 最低点まで下げる
+				goHome();
 			default:
 				// pid.setSetPoint(0);
 				break;
@@ -196,6 +206,21 @@ void fulltry(void){
 	ThisThread::sleep_for(50ms);
 
 	while(sitaLimit){	// 下限まで戻す
+		pid.setSetPoint(-1 * fast_targetRPM);
+	}
+	pid.setSetPoint(0);
+}
+
+void hutaPakaPaka(void){
+	huta_servo.pulsewidth_us(700);
+	ThisThread::sleep_for(500ms);
+	huta_servo.pulsewidth_us(2300);
+}
+
+void goHome(void){
+	Timer time;
+	time.start();
+	while(sitaLimit && time.elapsed_time() <= 2s){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
 	pid.setSetPoint(0);
