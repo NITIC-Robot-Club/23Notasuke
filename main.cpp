@@ -103,8 +103,6 @@ int main(void){
 		// pc.attach(reader, UnbufferedSerial::RxIrq);
 		raspPico.attach(reader, UnbufferedSerial::RxIrq);
 
-		float power;
-
 		switch(are){
 			case 'u':	// ゆっくり上げる
 				pid.setSetPoint(slow_targetRPM);
@@ -126,7 +124,6 @@ int main(void){
 				pid.setSetPoint(0);
 				break;
 		}
-        // printf("%f\n",power);
     }	
 }
 
