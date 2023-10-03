@@ -75,9 +75,6 @@ void hutaPakaPaka(void);
 
 void goHome(void);
 
-// シリアル読み
-void reader(void);
-
 // pid計算機
 void pid_calculater(void);
 
