@@ -65,10 +65,10 @@ void sendData(const int32_t torqu0);
 // 一定昇降とかの時間制限
 std::chrono::microseconds TIMELIMIT = 1s;
 
-// 一定上げ
+// 自動収穫
 void tryer(void);
 
-// 最高-最低上下
+// 一定上げ
 void nullpo(void);
 
 // お助けフタ開閉
