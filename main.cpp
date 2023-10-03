@@ -3,6 +3,8 @@
 #include <cstdio>
 #include "PIDcontroller.h"
 
+#define TIMELIMIT 1s
+
 UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
 
@@ -61,7 +63,7 @@ void sendData(const int32_t torqu0);
 void autotry(void);
 
 // 最高-最低上下
-void fulltry(void);
+void nullpo(void);
 
 void hutaPakaPaka(void);
 
@@ -98,9 +100,8 @@ int main(void){
 		pid.setProcessValue(M1.rpm);
 
 
-		pc.attach(reader, UnbufferedSerial::RxIrq);
-		// pc.read(&are,1);
-		// raspPico.read(&are,1);
+		// pc.attach(reader, UnbufferedSerial::RxIrq);
+		raspPico.attach(reader, UnbufferedSerial::RxIrq);
 
 		float power;
 
@@ -114,8 +115,8 @@ int main(void){
 			case 't':	// 一定上げ
 				autotry();
 				break;
-			case 'f':	// ごっつりオート収穫
-				fulltry();
+			case 'n':	// ごっつりオート収穫
+				nullpo();
 				break;
 			case 'g': 	// フタ開閉
 				hutaPakaPaka();
@@ -188,16 +189,19 @@ void autotry(void){
 	pid.setSetPoint(0);
 }
 
-void fulltry(void){
-
+void nullpo(void){ // ガッ
+	Timer time;
+	time.start();
 	// まずは初期位置に戻す
-	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
-		while(sitaLimit){
+	if(!ueLimit){	// 上限だったら一度おろす
+		while(sitaLimit && time.elapsed_time() <= TIMELIMIT){
 			pid.setSetPoint(-1 * fast_targetRPM);
 		}
+		pid.setSetPoint(0);
+		time.reset();
 	}
-
-	while(ueLimit){	// 上限まで上げる
+	time.start();
+	while(ueLimit && time.elapsed_time() <= TIMELIMIT){	// 1秒上げる
 		pid.setSetPoint(fast_targetRPM);
 	}
 
@@ -205,7 +209,7 @@ void fulltry(void){
 	pid.setSetPoint(0);
 	ThisThread::sleep_for(50ms);
 
-	while(sitaLimit){	// 下限まで戻す
+	while(sitaLimit && time.elapsed_time() <= TIMELIMIT){	// 下限まで戻す
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
 	pid.setSetPoint(0);
@@ -213,21 +217,23 @@ void fulltry(void){
 
 void hutaPakaPaka(void){
 	huta_servo.pulsewidth_us(700);
-	ThisThread::sleep_for(500ms);
+	ThisThread::sleep_for(1s);
 	huta_servo.pulsewidth_us(2300);
 }
 
 void goHome(void){
 	Timer time;
 	time.start();
-	while(sitaLimit && time.elapsed_time() <= 2s){
+	while(sitaLimit && time.elapsed_time() <= 3s){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
+	time.reset();
 	pid.setSetPoint(0);
 }
 
 void reader(void){
-	pc.read(&are, 1);
+	// pc		.read(&are, 1);
+	raspPico.read(&are, 1);
 }
 
 void pid_calculater(void){
