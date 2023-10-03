@@ -122,7 +122,7 @@ int main(void){
 			case 'h':	// 最低点まで下げる
 				goHome();
 			default:
-				// pid.setSetPoint(0);
+				pid.setSetPoint(0);
 				break;
 		}
         // printf("%f\n",power);
