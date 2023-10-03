@@ -1,19 +1,9 @@
 #include "mbed.h"
-#include "PS3.h"
 #include <cstdint>
 #include <cstdio>
 #include "PIDcontroller.h"
 
-// PID関連
-const float kp = 0.1;
-const float ki = 0.001;
-const float kd = 0.0;
-PID     pid(kp, ki, kd, 0.050);
-
-// 上昇に必要な回転数
-const int N = 1000000000;
-
-// UnbufferedSerial 	raspPico	(PB_6,PB_7);
+UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
 
 // LED光らせるぜ
@@ -29,6 +19,7 @@ DigitalOut	emergency(PB_0);
 // パタパタ接続確認LED
 DigitalIn	PataPataState(PA_0);
 
+// CAN周り
 RawCAN  can(PA_11, PA_12, 1000000);
 CircularBuffer<CANMessage, 32> queue;
 Ticker  getter;
@@ -43,8 +34,81 @@ struct C610Data{
     int32_t current;
 };
 
+// PID用
+const float kp = 1.0;
+const float ki = 0.001;
+const float kd = 2.0;
+PID pid(kp, ki, kd, 0.05);
 
-//  受信割り込み関数
+const int targetRPM = 1000;
+
+// CAN受信用
+void canListen(void);
+
+// 受信データの形式の変更
+void datachange(unsigned ID, struct C610Data *C610, CANMessage *Rcvmsg);
+
+// 電流値を送信用に変換
+void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
+
+// ESCにデータ送信
+void sendData(const int32_t torqu0);
+
+// 自動昇降
+void autoUpDown(void);
+
+void reader(void);
+char are;
+
+int main(void){
+    can.attach(&canListen, CAN::RxIrq);
+
+	int 	OutPutCurrent;
+
+    struct C610Data M1;
+    M1.ID = 0x201;
+    CANMessage Rxmsg;
+
+	pid.setOutputLimits(-8000, 8000);
+	pid.setInputLimits(-18000, 18000);
+
+    while(true){
+        while(!queue.empty()){
+            queue.pop(Rxmsg);
+            datachange(M1.ID, &M1, &Rxmsg);
+        }
+        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
+
+		pid.setProcessValue(M1.rpm);
+
+
+		pc.attach(reader, UnbufferedSerial::RxIrq);
+		// pc.read(&are,1);
+		// raspPico.read(&are,1);
+
+		float power;
+
+		switch(are){
+			case 'a':	// ゆっくり上げる
+				pid.setSetPoint(targetRPM);
+				break;
+			case 'b':	// ゆっくり下げる
+				pid.setSetPoint(-1 * targetRPM);
+				break;
+			case 'z':	// ごっつりオート収穫
+				// autoUpDown();
+				pid.setSetPoint(0);
+				break;
+			default:
+				// pid.setSetPoint(0);
+				break;
+		}
+		power = pid.compute();
+		sendData(power);
+        // printf("%f\n",power);
+    }	
+}
+
 void canListen(){
     CANMessage Rcvmsg;
     if (can.read(Rcvmsg)){
@@ -66,7 +130,7 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower){
     *lower = torqu & 0XFF;
 }
 
-void sendData(const int32_t torqu0, const int32_t torqu1){
+void sendData(const int32_t torqu0){
     int16_t t0,t1;
     if(torqu0>32000){
         t0 = 32000;
@@ -75,123 +139,41 @@ void sendData(const int32_t torqu0, const int32_t torqu1){
     }else{
         t0 = torqu0;
     }
-    if(torqu1>32000){
-        t1 = 32000;
-    }else if(torqu1<-32000){
-        t1 = -32000;
-    }else{
-        t1 = torqu1;
-    }
 
     CANMessage msg;
     msg.id = 0x200;
     TorqueToBytes(t0, &msg.data[0], &msg.data[1]);
-    TorqueToBytes(t1, &msg.data[2], &msg.data[4]);
-    for(int i=5; i<8; i++){
+    for(int i=2; i<8; i++){
         msg.data[i] = 0x00;
     }
     can.write(msg);
 }
 
+void autoUpDown(void){
 
-bool maru,batu,ue,sita;
+	// まずは初期位置に戻す
+	if(!ueLimit){	// 上限設定が押されていたら下限までいちど降ろす
+		while(sitaLimit){
+			pid.setSetPoint(-1 * targetRPM);
+			sendData(pid.compute());
+		}
+	}
 
-int main(void){
-    can.attach(&canListen, CAN::RxIrq);
+	while(ueLimit){	// 上限まで上げる
+		pid.setSetPoint(targetRPM);
+		sendData(pid.compute());
+	}
 
-    int pulse = 0;
-    int newpulse = 0;
+	// 逆起電力防止のアレ
+	sendData(0);
+	ThisThread::sleep_for(50ms);
 
-    // 1で上昇、2で下降（ホンマか？）
-    int wise = 0;
-    int circle = 0;
+	while(sitaLimit){	// 下限まで戻す
+		pid.setSetPoint(-1 * targetRPM);
+		sendData(pid.compute());
+	}
+}
 
-    bool pid_flag = true;
-
-    struct C610Data M1;
-    M1.ID = 0x201;
-    CANMessage Rxmsg;
-    while(true){
-        while(!queue.empty()){
-            queue.pop(Rxmsg);
-            datachange(M1.ID, &M1, &Rxmsg);
-            // sendData(32000, 0);
-        }
-        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
-        // printf("IN: %d %d\n", up.read(),down.read());
-        pulse = newpulse;
-        newpulse = M1.counts;
-
-
-        if(newpulse > 1000 && newpulse < 3000){
-            if(wise == 0){
-                
-            }else if(wise == 1){
-                circle++;
-            }else{
-                circle--;
-            }
-        }
-        // printf("%d %d\n", ueLimit.read(), sitaLimit.read());
-
-        // if(circle == N){
-        //     int pidcounts;
-
-        //     // 最大値がわかんなくて泣いてる
-        //     // 最大値に近かったら引いてPIDに無理無理突っ込め
-        //     while(pid_flag){
-        //         if(batu) break;
-        //         if(M1.counts >= 8000 - 500){
-        //             pidcounts = M1.counts - 8000;
-        //         }else{
-        //             pidcounts = M1.counts;
-        //         }
-
-        //         pid.setInputLimits(M1.counts-500, pidcounts+500);
-        //         pid.setOutputLimits(8000, 16000);
-        //         pid.setSetPoint(newpulse);
-        //         pid.setProcessValue(pidcounts);
-
-        //         sendData(pid.compute(),0);
-        //     }
-
-        // }else{
-                char are;
-				float data;
-                pc.read(&are,1);
-                if(are == 'a'){
-                    sendData(4000, 0);
-                    wise = 1;
-                }
-                else if(are == 'b'){
-                    sendData(-4000, 0);
-                    wise = 2;
-                }else if(are == 'z'){
-                    sendData(0,0);
-                }
-        //     else{
-        //         wise = 0;
-        //         int pidcounts;
-
-        //         // 最大値がわかんなくて泣いてる
-        //         // 最大値に近かったら引いてPIDに無理無理突っ込め
-        //         while(pid_flag){
-        //             if(batu) break;
-        //             if(M1.counts >= 8000 - 500){
-        //                 pidcounts = M1.counts - 8000;
-        //             }else{
-        //                 pidcounts = M1.counts;
-        //             }
-
-        //             pid.setInputLimits(pidcounts-500, pidcounts+500);
-        //             pid.setOutputLimits(-16000, 16000);
-        //             pid.setSetPoint(newpulse);
-        //             pid.setProcessValue(pidcounts);
-
-        //             sendData(pid.compute(),0);
-        //         }
-        //     }
-
-        // }
-    }
+void reader(void){
+	pc.read(&are, 1);
 }
