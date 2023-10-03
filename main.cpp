@@ -1,9 +1,12 @@
 #include "mbed.h"
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <ratio>
 #include "PIDcontroller.h"
-
-#define TIMELIMIT 1s
 
 UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
@@ -59,6 +62,9 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 // ESCにデータ送信
 void sendData(const int32_t torqu0);
 
+// 一定昇降とか用の時間制限
+std::chrono::microseconds TIMELIMIT = 1s;
+
 // 一定上げ
 void tryer(void);
 
@@ -82,11 +88,21 @@ int main(void){
     M1.ID = 0x201;
     CANMessage Rxmsg;
 
+	// PID各種設定
 	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,10ms);
-	
+
+	// LED点灯、電源オフ
+	LED.write(1);
+	emergency.write(0);
+
+	// ラズピコから来たコマンド文字列置き場
+	char command_from_raspPico[64];
+
+	// コマンド文字列の添字
+	int index = 0;
 
     while(true){
         while(!queue.empty()){
@@ -97,30 +113,42 @@ int main(void){
 
 		pid.setProcessValue(M1.rpm);
 
+		// 下半身から照射きたら電源オン
+		if(!PataPataState) 	emergency.write(0);
+		else				emergency.write(1);
 
-		// pc.attach(reader, UnbufferedSerial::RxIrq);
-		raspPico.attach(reader, UnbufferedSerial::RxIrq);
-
-		switch(are){
-			case 'u':	// ゆっくり上げる
-				pid.setSetPoint(slow_targetRPM);
-				break;
-			case 'd':	// ゆっくり下げる
-				pid.setSetPoint(-1 * slow_targetRPM);
-				break;
-			case 't':	// 自動収穫（一定時間上げ下げ）
-				tryer();
-				break;
-			case 'n':	// 一定まで上げる
-				nullpo();
-				break;
-			case 'g': 	// フタ開閉
-				hutaPakaPaka();
-			case 'h':	// 最低点まで下げる
-				goHome();
-			default:
-				pid.setSetPoint(0);
-				break;
+		if(raspPico.read(&are, 1) > 0){
+			if(are == '\n'){
+				command_from_raspPico[index] = '\0';
+			}
+			switch(command_from_raspPico[0]){
+				case 'u':	// ゆっくり上げる
+					// 速度を受け取ったパラメータに合わせる
+					pid.setSetPoint(atoi(&command_from_raspPico[1]));
+					break;
+				case 'd':	// ゆっくり下げる
+					// 速度を受け取ったパラメータに合わせる
+					pid.setSetPoint(atoi(&command_from_raspPico[1]));
+					break;
+				case 't':	// 自動収穫（一定時間上げ下げ）
+					tryer();
+					break;
+				case 'n':	// 一定まで上げる
+					nullpo();
+					break;
+				case 'g': 	// フタ開閉
+					hutaPakaPaka();
+				case 'h':	// 最低点まで下げる
+					goHome();
+				default:
+					pid.setSetPoint(0);
+					break;
+			}
+			index = 0;
+			memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
+		}else{
+			command_from_raspPico[index] = are;
+			index++;
 		}
     }	
 }
@@ -226,11 +254,6 @@ void goHome(void){
 	time.reset();
 
 	pid.setSetPoint(0);
-}
-
-void reader(void){
-	// pc		.read(&are, 1);
-	raspPico.read(&are, 1);
 }
 
 void pid_calculater(void){
