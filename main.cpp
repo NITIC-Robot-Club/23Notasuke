@@ -78,9 +78,6 @@ void pid_calculater(void);
 
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
-
-	int 	OutPutCurrent;
-
     struct C610Data M1;
     M1.ID = 0x201;
     CANMessage Rxmsg;
@@ -89,6 +86,7 @@ int main(void){
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,10ms);
+	
 
     while(true){
         while(!queue.empty()){
