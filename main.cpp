@@ -71,7 +71,7 @@ void goHome(void);
 
 // シリアル読み
 void reader(void);
-char are;	// 信号入れるやつ
+char are;	// シリアルのバッファ
 
 // pid計算機
 void pid_calculater(void);
@@ -139,7 +139,6 @@ void datachange(unsigned ID, struct C610Data *C610, CANMessage *Rcvmsg){
         C610->counts = uint16_t((Rcvmsg->data[0] << 8) | Rcvmsg->data[1]);
         C610->rpm = int16_t((Rcvmsg->data[2] << 8) | Rcvmsg->data[3]);
         C610->current = int16_t((Rcvmsg->data[4] << 8) | Rcvmsg->data[5]);
-        // printf("%d %d %d\n",C610->counts, C610->rpm, C610->current);
     }
 }
 
