@@ -77,7 +77,6 @@ void goHome(void);
 
 // シリアル読み
 void reader(void);
-char are;	// シリアルのバッファ
 
 // pid計算機
 void pid_calculater(void);
@@ -97,6 +96,9 @@ int main(void){
 	// LED点灯、電源オフ
 	LED.write(1);
 	emergency.write(0);
+	
+	// シリアルのバッファ
+	char are;
 
 	// ラズピコから来たコマンド文字列置き場
 	char command_from_raspPico[64];
