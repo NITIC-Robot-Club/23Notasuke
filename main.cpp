@@ -198,7 +198,7 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void tryer(microseconds onewaytime){
+void tryer(milliseconds onewaytime){
 	Timer stopwatch;
 
 	// 上限に到達していた場合、ちょっと下げてから
@@ -229,7 +229,7 @@ void tryer(microseconds onewaytime){
 	pid.setSetPoint(0);
 }
 
-void nullpo(microseconds onewaytime){ // ガッ
+void nullpo(milliseconds onewaytime){ // ガッ
 	Timer stopwatch;
 
 	stopwatch.start();
