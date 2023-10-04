@@ -44,9 +44,9 @@ struct C610Data{
 };
 
 // PID用
-const float	kp = 1.0;
+const float	kp = 0.1;
 const float	ki = 0.001;
-const float	kd = 2.0;
+const float	kd = 0.0;
 const int 	slow_targetRPM = 1000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 4000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
@@ -94,7 +94,7 @@ int main(void){
 
 	// LED点灯、電源オフ
 	LED.write(1);
-	emergency.write(0);
+	// emergency.write(0);
 	
 	// シリアルのバッファ
 	char are;
@@ -114,12 +114,12 @@ int main(void){
             datachange(M1.ID, &M1, &Rxmsg);
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
-
 		pid.setProcessValue(M1.rpm);
 
 		// 下半身から照射きたら電源オン
-		if(!PataPataState) 	emergency.write(0);
-		else				emergency.write(1);
+		// if(!PataPataState) 	emergency.write(0);
+		// else				emergency.write(1);
+        emergency.write(0);
 
 		if(raspPico.read(&are, 1) > 0){
 			if(are == '\n'){
@@ -144,14 +144,17 @@ int main(void){
 					break;
 				case 'g': 	// フタ開閉
 					hutaPakaPaka();
+                    break;
 				case 'h':	// 最低点まで下げる
 					goHome();
+                    break;
 				default:
 					pid.setSetPoint(0);
 					break;
 			}
 			index = 0;
-			memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
+			// memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
+            char command_from_raspPico[64];
 		}else{
 			command_from_raspPico[index] = are;
 			index++;
@@ -204,7 +207,7 @@ void tryer(milliseconds onewaytime){
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
 		stopwatch.start();
-		while(stopwatch.elapsed_time() <= onewaytime && sitaLimit){
+		while(stopwatch.elapsed_time() <= onewaytime){
 			pid.setSetPoint(-1 * fast_targetRPM);
 		}
 		stopwatch.reset();
@@ -214,14 +217,14 @@ void tryer(milliseconds onewaytime){
 
 	// 一定時間上げる or 上限まで上げる
 	stopwatch.start();
-	while(stopwatch.elapsed_time() <= onewaytime && ueLimit){
+	while(stopwatch.elapsed_time() <= onewaytime){
 		pid.setSetPoint(fast_targetRPM);
 	}
 	stopwatch.reset();
 
 	// 一定時間下げる or 下限まで下げる
 	stopwatch.start();
-	while(stopwatch.elapsed_time() <= onewaytime && sitaLimit){
+	while(stopwatch.elapsed_time() <= onewaytime){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
 	stopwatch.reset();
@@ -233,7 +236,7 @@ void nullpo(milliseconds onewaytime){ // ガッ
 	Timer stopwatch;
 
 	stopwatch.start();
-	while(stopwatch.elapsed_time() <= onewaytime && ueLimit){
+	while(stopwatch.elapsed_time() <= onewaytime){
 		pid.setSetPoint(fast_targetRPM);
 	}
 	stopwatch.reset();
@@ -254,7 +257,7 @@ void goHome(void){
 
 	// リミス死亡時のときのために一応時間制御もつけておく
 	// これは収穫時のonewaytimeとは異なるため注意
-	while(stopwatch.elapsed_time() <= 3s && sitaLimit){
+	while(stopwatch.elapsed_time() <= 3s){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
 	stopwatch.reset();
