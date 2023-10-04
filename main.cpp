@@ -128,18 +128,18 @@ int main(void){
 			switch(command_from_raspPico[0]){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
-					pid.setSetPoint(atoi(&command_from_raspPico[1]));
+					pid.setSetPoint(slow_targetRPM);
 					break;
 				case 'd':	// ゆっくり下げる
 					// 速度を受け取ったパラメータに合わせる
-					pid.setSetPoint(atoi(&command_from_raspPico[1]));
+					pid.setSetPoint(-slow_targetRPM);
 					break;
 				case 't':	// 自動収穫（一定時間上げ下げ）
-					TIMELIMIT = milliseconds(atoi(&command_from_raspPico[1]));
+					// TIMELIMIT = milliseconds(atoi(&command_from_raspPico[1]));
 					tryer(TIMELIMIT);
 					break;
 				case 'n':	// 一定まで上げる
-					TIMELIMIT = milliseconds(atoi(&command_from_raspPico[1]));
+					// TIMELIMIT = milliseconds(atoi(&command_from_raspPico[1]));
 					nullpo(TIMELIMIT);
 					break;
 				case 'g': 	// フタ開閉
