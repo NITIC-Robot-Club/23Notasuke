@@ -10,7 +10,6 @@
 
 using namespace std::chrono;
 
-UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
 
 // LED光らせるぜ
@@ -121,7 +120,7 @@ int main(void){
 		if(!PataPataState) 	emergency.write(0);
 		else				emergency.write(1);
 
-		if(raspPico.read(&are, 1) > 0){
+		if(pc.read(&are, 1)){
 			if(are == '\n'){
 				command_from_raspPico[index] = '\0';
 			}
