@@ -5,8 +5,8 @@
 
 #define TIMELIMIT 1s
 
-UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
+bool receive = false;
 
 // LED光らせるぜ
 PwmOut	LED	(PB_1);
@@ -26,7 +26,6 @@ PwmOut 		huta_servo(PA_7);
 // CAN周り
 RawCAN  can(PA_11, PA_12, 1000000);
 CircularBuffer<CANMessage, 32> queue;
-Ticker  getter;
 char RcvData[8] = {0x00};
 
 // CANMessage sendmsg(0x000, TxData, 8, CANData, CANStandard);
@@ -70,8 +69,11 @@ void hutaPakaPaka(void);
 void goHome(void);
 
 // シリアル読み
-void reader(void);
-char are;	// シリアルのバッファ
+void	reader(void);
+char	are;	// シリアルのバッファ
+char 	command_from_pc[64];
+int		index;
+Ticker	getter;
 
 // pid計算機
 void pid_calculater(void);
@@ -91,6 +93,8 @@ int main(void){
     LED.write(1);
     emergency.write(0);
 
+	pc.attach(reader, SerialBase::RxIrq);
+
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -98,8 +102,11 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
-		if(pc.read(&are, 1)){
-            switch(are){
+
+
+		if(receive){
+			receive = false;
+            switch(command_from_pc[0]){
                 case 'u':	// ゆっくり上げる
                 	pid.setSetPoint(slow_targetRPM);
 					break;
@@ -232,7 +239,15 @@ void goHome(void){
 }
 
 void reader(void){
-	pc		.read(&are, 1);
+	pc.read(&are, 1);
+	if(are == '\n'){
+		command_from_pc[index] = '\0';
+		index = 0;
+		receive = true;
+	}else{
+		command_from_pc[index] = are;
+		index++;
+	}
 }
 
 void pid_calculater(void){
