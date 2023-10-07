@@ -108,12 +108,13 @@ int main(void){
 			receive = false;
             switch(command_from_pc[0]){
                 case 'u':	// ゆっくり上げる
-                	pid.setSetPoint(slow_targetRPM);
+                	pid.setSetPoint(command_from_pc[1]);
 					break;
                 case 'd':	// ゆっくり下げる
-                    pid.setSetPoint(-1 * slow_targetRPM);
+                    pid.setSetPoint(-1 * command_from_pc[1]);
                     break;
                 case 't':	// 自動収穫（一定時間上げ下げ）
+					
                     tryer();
                     break;
                 case 'n':	// 一定まで上げる
