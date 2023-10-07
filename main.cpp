@@ -11,8 +11,8 @@
 using namespace std::chrono;
 
 UnbufferedSerial 	raspPico(PB_6,PB_7);
-UnbufferedSerial	pc(USBTX, USBRX);
-
+// UnbufferedSerial	pc(USBTX, USBRX);
+bool recv=false;
 // LED光らせるぜ
 PwmOut	LED	(PB_1);
 
@@ -80,6 +80,15 @@ void goHome(void);
 // pid計算機
 void pid_calculater(void);
 
+// シリアルのバッファ
+char are;
+// ラズピコから来たコマンド文字列置き場
+char command_from_raspPico[64] = {};
+// コマンド文字列の添字
+int index = 0;
+void input(void);   //recv data (attach)
+
+
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
     struct C610Data M1;
@@ -96,18 +105,11 @@ int main(void){
 	LED.write(1);
 	emergency.write(0);
 	
-	// シリアルのバッファ
-	char are;
-
-	// ラズピコから来たコマンド文字列置き場
-	char command_from_raspPico[64] = {};
-
-	// コマンド文字列の添字
-	int index = 0;
 
 	// 一定昇降と自動収穫の時間制限
 	milliseconds TIMELIMIT = 1s;
 
+    raspPico.attach(input,SerialBase::RxIrq);
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -121,10 +123,8 @@ int main(void){
 		if(!PataPataState) 	emergency.write(0);
 		else				emergency.write(1);
 
-		if(raspPico.read(&are, 1) > 0){
-			if(are == '\n'){
-				command_from_raspPico[index] = '\0';
-			}
+		if(recv){
+			recv=false;
 			switch(command_from_raspPico[0]){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
@@ -152,13 +152,21 @@ int main(void){
 					pid.setSetPoint(0);
 					break;
 			}
-			index = 0;
 			memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
-		}else{
-			command_from_raspPico[index] = are;
-			index++;
-		}
+        }
     }	
+}
+
+void input(){
+    raspPico.read(&are,1);
+    if(are=='\n'){
+        command_from_raspPico[index]='\0';
+        index=0;
+        recv=true;
+    }else{
+        command_from_raspPico[index]=are;
+        index++;
+    }
 }
 
 void canListen(){
