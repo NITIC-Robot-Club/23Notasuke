@@ -85,10 +85,11 @@ int main(void){
 	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
-	calculater.attach(pid_calculater ,10ms);
+	calculater.attach(pid_calculater ,50ms);
 	
 
     while(true){
+        emergency.write(1);
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
