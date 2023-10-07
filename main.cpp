@@ -10,6 +10,7 @@
 
 using namespace std::chrono;
 
+UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
 
 // LED光らせるぜ
@@ -120,7 +121,7 @@ int main(void){
 		if(!PataPataState) 	emergency.write(0);
 		else				emergency.write(1);
 
-		if(pc.read(&are, 1)){
+		if(raspPico.read(&are, 1) > 0){
 			if(are == '\n'){
 				command_from_raspPico[index] = '\0';
 			}
@@ -143,8 +144,10 @@ int main(void){
 					break;
 				case 'g': 	// フタ開閉
 					hutaPakaPaka();
+                    break;
 				case 'h':	// 最低点まで下げる
 					goHome();
+                    break;
 				default:
 					pid.setSetPoint(0);
 					break;
