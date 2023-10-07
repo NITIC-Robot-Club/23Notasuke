@@ -60,10 +60,10 @@ void sendData(const int32_t torqu0);
 
 
 // 一定上げ
-void tryer(void);
+void tryer(milliseconds);
 
 // 最高-最低上下
-void nullpo(void);
+void nullpo(milliseconds);
 
 void hutaPakaPaka(void);
 
@@ -187,7 +187,7 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void tryer(void){
+void tryer(TIMELIMIT){
 	Timer time;
 
 	// 上限に到達していた場合、ちょっと下げてから
@@ -218,7 +218,7 @@ void tryer(void){
 	pid.setSetPoint(0);
 }
 
-void nullpo(void){ // ガッ
+void nullpo(TIMELIMIT){ // ガッ
 	Timer time;
 
 	time.start();
