@@ -93,7 +93,7 @@ int main(void){
 
 	// LED点灯、電源オン
     LED.write(1);
-    emergency.write(0);
+    emergency.write(1);
 
 	pc.attach(reader, SerialBase::RxIrq);
 
