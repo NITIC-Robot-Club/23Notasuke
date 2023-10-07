@@ -3,8 +3,6 @@
 #include <cstdio>
 #include "PIDcontroller.h"
 
-#define TIMELIMIT 1s
-
 UnbufferedSerial	pc(USBTX, USBRX);
 bool recv = false;
 
@@ -57,6 +55,8 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 
 // ESCにデータ送信
 void sendData(const int32_t torqu0);
+
+milliseconds TIMELIMIT = 0ms;
 
 // 一定上げ
 void tryer(void);
