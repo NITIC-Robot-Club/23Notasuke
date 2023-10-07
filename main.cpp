@@ -1,14 +1,9 @@
 #include "mbed.h"
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ratio>
 #include "PIDcontroller.h"
 
-using namespace std::chrono;
+#define TIMELIMIT 1s
 
 UnbufferedSerial 	raspPico(PB_6,PB_7);
 UnbufferedSerial	pc(USBTX, USBRX);
@@ -64,18 +59,19 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 // ESCにデータ送信
 void sendData(const int32_t torqu0);
 
-
-// 自動収穫
-void tryer(milliseconds onewaytime);
-
 // 一定上げ
-void nullpo(milliseconds onewaytime);
+void tryer(void);
 
-// お助けフタ開閉
+// 最高-最低上下
+void nullpo(void);
+
 void hutaPakaPaka(void);
 
-// シザー最低まで下げる
 void goHome(void);
+
+// シリアル読み
+void reader(void);
+char are;	// シリアルのバッファ
 
 // pid計算機
 void pid_calculater(void);
@@ -86,27 +82,11 @@ int main(void){
     M1.ID = 0x201;
     CANMessage Rxmsg;
 
-	// PID各種設定
 	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,10ms);
-
-	// LED点灯、電源オフ
-	LED.write(1);
-	emergency.write(0);
 	
-	// シリアルのバッファ
-	char are;
-
-	// ラズピコから来たコマンド文字列置き場
-	char command_from_raspPico[64];
-
-	// コマンド文字列の添字
-	int index = 0;
-
-	// 一定昇降と自動収穫の時間制限
-	milliseconds TIMELIMIT = 1s;
 
     while(true){
         while(!queue.empty()){
@@ -117,46 +97,32 @@ int main(void){
 
 		pid.setProcessValue(M1.rpm);
 
-		// 下半身から照射きたら電源オン
-		if(!PataPataState) 	emergency.write(0);
-		else				emergency.write(1);
 
-		if(raspPico.read(&are, 1) > 0){
-			if(are == '\n'){
-				command_from_raspPico[index] = '\0';
-			}
-			switch(command_from_raspPico[0]){
-				case 'u':	// ゆっくり上げる
-					// 速度を受け取ったパラメータに合わせる
-					pid.setSetPoint(atoi(&command_from_raspPico[1]));
-					break;
-				case 'd':	// ゆっくり下げる
-					// 速度を受け取ったパラメータに合わせる
-					pid.setSetPoint(atoi(&command_from_raspPico[1]));
-					break;
-				case 't':	// 自動収穫（一定時間上げ下げ）
-					TIMELIMIT = milliseconds(atoi(&command_from_raspPico[1]));
-					tryer(TIMELIMIT);
-					break;
-				case 'n':	// 一定まで上げる
-					TIMELIMIT = milliseconds(atoi(&command_from_raspPico[1]));
-					nullpo(TIMELIMIT);
-					break;
-				case 'g': 	// フタ開閉
-					hutaPakaPaka();
-                    break;
-				case 'h':	// 最低点まで下げる
-					goHome();
-                    break;
-				default:
-					pid.setSetPoint(0);
-					break;
-			}
-			index = 0;
-			memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
-		}else{
-			command_from_raspPico[index] = are;
-			index++;
+		// pc.attach(reader, UnbufferedSerial::RxIrq);
+		raspPico.attach(reader, UnbufferedSerial::RxIrq);
+
+		switch(are){
+			case 'u':	// ゆっくり上げる
+				pid.setSetPoint(slow_targetRPM);
+				break;
+			case 'd':	// ゆっくり下げる
+				pid.setSetPoint(-1 * slow_targetRPM);
+				break;
+			case 't':	// 自動収穫（一定時間上げ下げ）
+				tryer();
+				break;
+			case 'n':	// 一定まで上げる
+				nullpo();
+				break;
+			case 'g': 	// フタ開閉
+				hutaPakaPaka();
+                break;
+			case 'h':	// 最低点まで下げる
+				goHome();
+                break;
+			default:
+				pid.setSetPoint(0);
+				break;
 		}
     }	
 }
@@ -200,45 +166,45 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void tryer(milliseconds onewaytime){
-	Timer stopwatch;
+void tryer(void){
+	Timer time;
 
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
-		stopwatch.start();
-		while(stopwatch.elapsed_time() <= onewaytime && sitaLimit){
+		time.start();
+		while(time.elapsed_time() <= TIMELIMIT && sitaLimit){
 			pid.setSetPoint(-1 * fast_targetRPM);
 		}
-		stopwatch.reset();
+		time.reset();
 		pid.setSetPoint(0);
 		ThisThread::sleep_for(10ms);
 	}
 
 	// 一定時間上げる or 上限まで上げる
-	stopwatch.start();
-	while(stopwatch.elapsed_time() <= onewaytime && ueLimit){
+	time.start();
+	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
 		pid.setSetPoint(fast_targetRPM);
 	}
-	stopwatch.reset();
+	time.reset();
 
 	// 一定時間下げる or 下限まで下げる
-	stopwatch.start();
-	while(stopwatch.elapsed_time() <= onewaytime && sitaLimit){
+	time.start();
+	while(time.elapsed_time() <= TIMELIMIT && sitaLimit){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
-	stopwatch.reset();
+	time.reset();
 
 	pid.setSetPoint(0);
 }
 
-void nullpo(milliseconds onewaytime){ // ガッ
-	Timer stopwatch;
+void nullpo(void){ // ガッ
+	Timer time;
 
-	stopwatch.start();
-	while(stopwatch.elapsed_time() <= onewaytime && ueLimit){
+	time.start();
+	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
 		pid.setSetPoint(fast_targetRPM);
 	}
-	stopwatch.reset();
+	time.reset();
 
 	pid.setSetPoint(0);
 }
@@ -250,18 +216,22 @@ void hutaPakaPaka(void){
 }
 
 void goHome(void){
-	Timer stopwatch;
+	Timer time;
 
-	stopwatch.start();
+	time.start();
 
 	// リミス死亡時のときのために一応時間制御もつけておく
-	// これは収穫時のonewaytimeとは異なるため注意
-	while(stopwatch.elapsed_time() <= 3s && sitaLimit){
+	// これは収穫時のTIMELIMITとは異なるため注意
+	while(time.elapsed_time() <= 3s && sitaLimit){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
-	stopwatch.reset();
+	time.reset();
 
 	pid.setSetPoint(0);
+}
+
+void reader(void){
+	pc		.read(&are, 1);
 }
 
 void pid_calculater(void){
