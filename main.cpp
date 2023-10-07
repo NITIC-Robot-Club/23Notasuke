@@ -16,7 +16,7 @@ DigitalIn	ueLimit		(PA_3); //上限
 DigitalIn	sitaLimit	(PA_4); //下限
 
 // 電源基板停止
-DigitalOut	emergency(PB_0);
+DigitalOut	emergency(PF_1);
 
 // パタパタ接続確認LED
 DigitalIn	PataPataState(PA_0);
@@ -87,7 +87,6 @@ int main(void){
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,50ms);
 	
-
     while(true){
         emergency.write(1);
         while(!queue.empty()){
@@ -99,8 +98,8 @@ int main(void){
 		pid.setProcessValue(M1.rpm);
 
 
-		// pc.attach(reader, UnbufferedSerial::RxIrq);
-		raspPico.attach(reader, UnbufferedSerial::RxIrq);
+		pc.attach(reader, UnbufferedSerial::RxIrq);
+		// raspPico.attach(reader, UnbufferedSerial::RxIrq);
 
 		switch(are){
 			case 'u':	// ゆっくり上げる
