@@ -58,7 +58,6 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 // ESCにデータ送信
 void sendData(const int32_t torqu0);
 
-milliseconds TIMELIMIT = 0ms;
 
 // 一定上げ
 void tryer(void);
@@ -91,6 +90,9 @@ int main(void){
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,50ms);
+
+	// 自動昇降時間制限
+	milliseconds TIMELIMIT = 0ms;
 
 	// LED点灯、電源オン
     LED.write(1);
