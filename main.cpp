@@ -1,4 +1,5 @@
 #include "mbed.h"
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include "PIDcontroller.h"
@@ -72,7 +73,7 @@ void goHome(void);
 // シリアル読み
 void	reader(void);
 char	are;	// シリアルのバッファ
-char 	command_from_pc[64];
+char 	command_from_pc[64] = {};
 int		index = 0;
 
 // pid計算機
@@ -187,7 +188,7 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void tryer(TIMELIMIT){
+void tryer(milliseconds TIMELIMIT){
 	Timer time;
 
 	// 上限に到達していた場合、ちょっと下げてから
@@ -218,7 +219,7 @@ void tryer(TIMELIMIT){
 	pid.setSetPoint(0);
 }
 
-void nullpo(TIMELIMIT){ // ガッ
+void nullpo(milliseconds TIMELIMIT){ // ガッ
 	Timer time;
 
 	time.start();
@@ -253,13 +254,12 @@ void goHome(void){
 
 void reader(void){
 	pc.read(&are, 1);
-	if(are == '\n'){
+	command_from_pc[index] = are;
+	index++;
+	if(command_from_pc[index-1] == '\n'){
 		command_from_pc[index] = '\0';
 		index = 0;
 		recv = true;
-	}else{
-		command_from_pc[index] = are;
-		index++;
 	}
 }
 
