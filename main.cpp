@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include "PIDcontroller.h"
 
 using namespace std::chrono;
@@ -97,7 +98,7 @@ int main(void){
 
 	// LED点灯、電源オン
     LED.write(1);
-    emergency.write(1);
+    emergency.write(0);
 
 	pc.attach(reader, SerialBase::RxIrq);
 
@@ -142,6 +143,7 @@ int main(void){
 					pid.setSetPoint(0);
                     break;
             }
+            memset(command_from_pc, 0, sizeof(command_from_pc));
         }else{
 			pid.setSetPoint(0);
 			printf("hoge\n");
@@ -261,6 +263,7 @@ void reader(void){
 		index = 0;
 		recv = true;
 	}
+    if(!PataPataState) emergency.write(1);
 }
 
 void pid_calculater(void){
