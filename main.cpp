@@ -79,9 +79,11 @@ Ticker	getter;
 void pid_calculater(void);
 
 int main(void){
-    can.attach(&canListen, CAN::RxIrq);
+
+	// CAN周り設定
     M1.ID = 0x201;
     CANMessage Rxmsg;
+    can.attach(&canListen, CAN::RxIrq);
 
 	// PIDいろいろ設定
 	pid.setOutputLimits(-8000, 8000);
@@ -89,6 +91,7 @@ int main(void){
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,50ms);
 
+	// LED点灯、電源オン
     LED.write(1);
     emergency.write(0);
 
@@ -101,9 +104,10 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
-		// 下半身から照射きたら電源オン
-		if(!PataPataState) 	emergency.write(1);
-		else				emergency.write(0);
+		// // 下半身から照射きたら電源オン
+		// if(!PataPataState) 	emergency.write(1);
+		// else				emergency.write(0);
+		// ↑pcとの通信時は使わない予定
 
 		if(recv){
 			recv=false;
