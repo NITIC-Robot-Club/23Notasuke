@@ -100,7 +100,7 @@ int main(void){
 	char are;
 
 	// ラズピコから来たコマンド文字列置き場
-	char command_from_raspPico[64];
+	char command_from_raspPico[64] = {};
 
 	// コマンド文字列の添字
 	int index = 0;
