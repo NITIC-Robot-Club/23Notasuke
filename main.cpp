@@ -36,7 +36,7 @@ struct C610Data{
     int32_t counts;
     int32_t rpm;
     int32_t current;
-};
+}M1;
 
 // PID用
 const float	kp = 1.0;
@@ -78,16 +78,19 @@ void pid_calculater(void);
 
 int main(void){
     can.attach(&canListen, CAN::RxIrq);
-    struct C610Data M1;
     M1.ID = 0x201;
     CANMessage Rxmsg;
 
+	// PIDいろいろ設定
 	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,50ms);
+
+
     LED.write(1);
     emergency.write(0);
+
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -95,34 +98,32 @@ int main(void){
         }
         printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
 
-		pid.setProcessValue(M1.rpm);
-
-		pc.read(&are, 1);
-		// raspPico.attach(reader, UnbufferedSerial::RxIrq);
-
-		switch(are){
-			case 'u':	// ゆっくり上げる
-				pid.setSetPoint(slow_targetRPM);
-				break;
-			case 'd':	// ゆっくり下げる
-				pid.setSetPoint(-1 * slow_targetRPM);
-				break;
-			case 't':	// 自動収穫（一定時間上げ下げ）
-				tryer();
-				break;
-			case 'n':	// 一定まで上げる
-				nullpo();
-				break;
-			case 'g': 	// フタ開閉
-				hutaPakaPaka();
-                break;
-			case 'h':	// 最低点まで下げる
-				goHome();
-                break;
-			default:
-                printf("hoge\n");
-				pid.setSetPoint(0);
-				break;
+		if(pc.read(&are, 1)){
+            switch(are){
+                case 'u':	// ゆっくり上げる
+                	pid.setSetPoint(slow_targetRPM);
+					break;
+                case 'd':	// ゆっくり下げる
+                    pid.setSetPoint(-1 * slow_targetRPM);
+                    break;
+                case 't':	// 自動収穫（一定時間上げ下げ）
+                    tryer();
+                    break;
+                case 'n':	// 一定まで上げる
+                    nullpo();
+                    break;
+                case 'g': 	// フタ開閉
+                    hutaPakaPaka();
+                    break;
+                case 'h':	// 最低点まで下げる
+                    goHome();
+                    break;
+                default:
+                    break;
+            }
+        }else{
+			pid.setSetPoint(0);
+			printf("hoge\n");
 		}
     }	
 }
@@ -235,5 +236,6 @@ void reader(void){
 }
 
 void pid_calculater(void){
+	pid.setProcessValue(M1.rpm);
 	sendData(pid.compute());
 }
