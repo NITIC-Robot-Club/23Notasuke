@@ -103,7 +103,7 @@ int main(void){
 
 	// LED点灯、電源オフ
 	LED.write(1);
-	emergency.write(0);
+	emergency.write(1);
 	
 
 	// 一定昇降と自動収穫の時間制限
@@ -120,8 +120,8 @@ int main(void){
 		pid.setProcessValue(M1.rpm);
 
 		// 下半身から照射きたら電源オン
-		if(!PataPataState) 	emergency.write(0);
-		else				emergency.write(1);
+		if(!PataPataState) 	emergency.write(1);
+		else				emergency.write(0);
 
 		if(recv){
 			recv=false;
