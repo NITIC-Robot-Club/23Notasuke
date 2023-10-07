@@ -16,7 +16,7 @@ DigitalIn	ueLimit		(PA_3); //上限
 DigitalIn	sitaLimit	(PA_4); //下限
 
 // 電源基板停止
-DigitalOut	emergency(PF_1);
+DigitalOut	emergency(PB_0);
 
 // パタパタ接続確認LED
 DigitalIn	PataPataState(PA_0);
@@ -86,9 +86,9 @@ int main(void){
 	pid.setInputLimits(-18000, 18000);
 	pid.setSetPoint(0);
 	calculater.attach(pid_calculater ,50ms);
-	
+    LED.write(1);
+    emergency.write(0);
     while(true){
-        emergency.write(1);
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
@@ -97,8 +97,7 @@ int main(void){
 
 		pid.setProcessValue(M1.rpm);
 
-
-		pc.attach(reader, UnbufferedSerial::RxIrq);
+		pc.read(&are, 1);
 		// raspPico.attach(reader, UnbufferedSerial::RxIrq);
 
 		switch(are){
@@ -121,6 +120,7 @@ int main(void){
 				goHome();
                 break;
 			default:
+                printf("hoge\n");
 				pid.setSetPoint(0);
 				break;
 		}
@@ -211,7 +211,7 @@ void nullpo(void){ // ガッ
 
 void hutaPakaPaka(void){
 	huta_servo.pulsewidth_us(700);
-	ThisThread::sleep_for(1s);
+	ThisThread::sleep_for(2s);
 	huta_servo.pulsewidth_us(2300);
 }
 
