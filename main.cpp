@@ -73,7 +73,6 @@ void	reader(void);
 char	are;	// シリアルのバッファ
 char 	command_from_pc[64];
 int		index;
-Ticker	getter;
 
 // pid計算機
 void pid_calculater(void);
