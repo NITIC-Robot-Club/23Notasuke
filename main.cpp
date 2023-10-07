@@ -86,7 +86,7 @@ char are;
 char command_from_raspPico[64] = {};
 // コマンド文字列の添字
 int index = 0;
-void input(void);   //recv data (attach)
+void reader(void);   //recv data (attach)
 
 
 int main(void){
@@ -109,7 +109,7 @@ int main(void){
 	// 一定昇降と自動収穫の時間制限
 	milliseconds TIMELIMIT = 1s;
 
-    raspPico.attach(input,SerialBase::RxIrq);
+    raspPico.attach(reader,SerialBase::RxIrq);
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -155,18 +155,6 @@ int main(void){
 			memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
         }
     }	
-}
-
-void input(){
-    raspPico.read(&are,1);
-    if(are=='\n'){
-        command_from_raspPico[index]='\0';
-        index=0;
-        recv=true;
-    }else{
-        command_from_raspPico[index]=are;
-        index++;
-    }
 }
 
 void canListen(){
@@ -274,4 +262,16 @@ void goHome(void){
 
 void pid_calculater(void){
 	sendData(pid.compute());
+}
+
+
+void reader(){
+    raspPico.read(&are,1);
+    command_from_raspPico[index] = are;
+    index++;
+    if(command_from_raspPico[index - 1] == '\n'){
+        command_from_raspPico[index] = '\0';
+        index = 0;
+        recv = true;
+    }
 }
