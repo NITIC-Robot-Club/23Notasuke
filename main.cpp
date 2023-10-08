@@ -43,7 +43,7 @@ struct C610Data{
 const float	kp = 1.0;
 const float	ki = 2.0;
 const float	kd = 0.01;
-const int 	slow_targetRPM = 1000; 	// 手動昇降目標値[rpm]
+const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 4000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
 PID			pid(kp, ki, kd, 0.05);
@@ -102,6 +102,8 @@ int main(void){
 
 	pc.attach(reader, SerialBase::RxIrq);
 
+    sendData(0);
+
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
@@ -117,11 +119,15 @@ int main(void){
         switch(are){
             case 'u':	// ゆっくり上げる
                 // 速度を受け取ったパラメータに合わせる
-                if(!ueLimit) pid.setSetPoint(slow_targetRPM);
+                // if(ueLimit) pid.setSetPoint(slow_targetRPM);
+                if(ueLimit.read())  pid.setSetPoint(slow_targetRPM);
+                else                pid.setSetPoint(0);
                 break;
             case 'd':	// ゆっくり下げる
                 // 速度を受け取ったパラメータに合わせる
-                if(!sitaLimit) pid.setSetPoint(-slow_targetRPM);
+                // if(sitaLimit)   pid.setSetPoint(-slow_targetRPM);
+                if(sitaLimit.read())pid.setSetPoint(-slow_targetRPM);
+                else                pid.setSetPoint(0);
                 break;
             case 't':	// 自動収穫（一定時間上げ下げ）
                 TIMELIMIT = 1000ms;
@@ -186,32 +192,35 @@ void sendData(const int32_t torqu0){
 }
 
 void tryer(milliseconds TIMELIMIT){
-	Timer time;
+    Timer time;
+    milliseconds span;
 
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
 		time.start();
-		while(time.elapsed_time() <= TIMELIMIT && sitaLimit){
-			pid.setSetPoint(-1 * fast_targetRPM);
+		while(time.elapsed_time() <= 500ms && sitaLimit.read()){
+			pid.setSetPoint(-fast_targetRPM);
 		}
-		time.reset();
+        time.stop();
+		// time.reset();
 		pid.setSetPoint(0);
 		ThisThread::sleep_for(10ms);
 	}
 
 	// 一定時間上げる or 上限まで上げる
-	time.start();
-	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
+	while(ueLimit.read()){
 		pid.setSetPoint(fast_targetRPM);
 	}
-	time.reset();
+
+    pid.setSetPoint(0);
+    ThisThread::sleep_for(100ms);
 
 	// 一定時間下げる or 下限まで下げる
-	time.start();
-	while(time.elapsed_time() <= TIMELIMIT && sitaLimit){
+	while(sitaLimit.read()){
 		pid.setSetPoint(-1 * fast_targetRPM);
 	}
-	time.reset();
+    time.stop();
+	// time.reset();
 
 	pid.setSetPoint(0);
 }
@@ -219,11 +228,9 @@ void tryer(milliseconds TIMELIMIT){
 void nullpo(milliseconds TIMELIMIT){ // ガッ
 	Timer time;
 
-	time.start();
 	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
 		pid.setSetPoint(fast_targetRPM);
 	}
-	time.reset();
 
 	pid.setSetPoint(0);
 }
