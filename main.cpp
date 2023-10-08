@@ -40,11 +40,11 @@ struct C610Data{
 }M1;
 
 // PID用
-const float	kp = 1.0;
+const float	kp = 1.5;
 const float	ki = 2.0;
 const float	kd = 0.01;
 const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
-const int 	fast_targetRPM = 4000; 	// 自動一定上げ目標値[rpm]
+const int 	fast_targetRPM = 3000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
 PID			pid(kp, ki, kd, 0.05);
 
@@ -89,7 +89,7 @@ int main(void){
 
 	// PIDいろいろ設定
 	pid.setInputLimits(-18000, 18000);
-	pid.setOutputLimits(-8000, 18000);
+	pid.setOutputLimits(-8000, 32000);
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
@@ -115,9 +115,11 @@ int main(void){
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
 
-		if(recv){
-			pid.setSetPoint(18000);
+		static bool initial_counter = true;
+		if(recv && initial_counter){
+			pid.setSetPoint(32000);
 			emergency.write(0);
+			initial_counter = false;
 		}
         switch(are){
             case 'u':	// ゆっくり上げる
@@ -198,12 +200,9 @@ void tryer(milliseconds TIMELIMIT){
 
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
-		time.start();
-		while(time.elapsed_time() <= 500ms && sitaLimit.read()){
+		while(sitaLimit.read()){
 			pid.setSetPoint(-fast_targetRPM);
 		}
-        time.stop();
-		// time.reset();
 		pid.setSetPoint(0);
 		ThisThread::sleep_for(10ms);
 	}
