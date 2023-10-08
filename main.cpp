@@ -41,8 +41,8 @@ struct C610Data{
 
 // PID用
 const float	kp = 1.0;
-const float	ki = 0.001;
-const float	kd = 2.0;
+const float	ki = 2.0;
+const float	kd = 0.01;
 const int 	slow_targetRPM = 1000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 4000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
@@ -94,7 +94,7 @@ int main(void){
 	calculater.attach(pid_calculater ,50ms);
 
 	// 自動昇降時間制限
-	milliseconds TIMELIMIT = 0ms;
+	milliseconds TIMELIMIT = 1000ms;
 
 	// LED点灯、電源オン
     LED.write(1);
@@ -107,47 +107,42 @@ int main(void){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
         }
-        printf("%d %d %d\n", M1.counts, M1.rpm, M1.current);  
+        printf("%d %d %d\nue: %d\tsita:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read());  
 
 		// // 下半身から照射きたら電源オン
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
 
-		if(recv){
-			recv=false;
-			switch(command_from_pc[0]){
-				case 'u':	// ゆっくり上げる
-					// 速度を受け取ったパラメータに合わせる
-					pid.setSetPoint(slow_targetRPM);
-					break;
-				case 'd':	// ゆっくり下げる
-					// 速度を受け取ったパラメータに合わせる
-					pid.setSetPoint(-slow_targetRPM);
-					break;
-				case 't':	// 自動収穫（一定時間上げ下げ）
-					TIMELIMIT = 3000ms;
-					tryer(TIMELIMIT);
-					break;
-				case 'n':	// 一定まで上げる
-					TIMELIMIT = 3000ms;
-					nullpo(TIMELIMIT);
-					break;
-                case 'g': 	// フタ開閉
-                    hutaPakaPaka();
-                    break;
-                case 'h':	// 最低点まで下げる
-                    goHome();
-                    break;
-                default:
-					pid.setSetPoint(0);
-                    break;
-            }
-            memset(command_from_pc, 0, sizeof(command_from_pc));
-        }else{
-			pid.setSetPoint(0);
-			printf("hoge\n");
-		}
+        switch(are){
+            case 'u':	// ゆっくり上げる
+                // 速度を受け取ったパラメータに合わせる
+                if(!ueLimit) pid.setSetPoint(slow_targetRPM);
+                break;
+            case 'd':	// ゆっくり下げる
+                // 速度を受け取ったパラメータに合わせる
+                if(!sitaLimit) pid.setSetPoint(-slow_targetRPM);
+                break;
+            case 't':	// 自動収穫（一定時間上げ下げ）
+                TIMELIMIT = 1000ms;
+                tryer(TIMELIMIT);
+                break;
+            case 'n':	// 一定まで上げる
+                TIMELIMIT = 1000ms;
+                nullpo(TIMELIMIT);
+                break;
+            case 'g': 	// フタ開閉
+                hutaPakaPaka();
+                break;
+            case 'h':	// 最低点まで下げる
+                goHome();
+                break;
+            default:
+                pid.setSetPoint(0);
+                break;
+        }
+        are = '\0';
+        memset(command_from_pc, 0, sizeof(command_from_pc));
     }	
 }
 
@@ -256,14 +251,6 @@ void goHome(void){
 
 void reader(void){
 	pc.read(&are, 1);
-	command_from_pc[index] = are;
-	index++;
-	if(command_from_pc[index-1] == '\n'){
-		command_from_pc[index] = '\0';
-		index = 0;
-		recv = true;
-	}
-    if(!PataPataState) emergency.write(1);
 }
 
 void pid_calculater(void){
