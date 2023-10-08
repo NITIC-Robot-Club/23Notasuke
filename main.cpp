@@ -40,9 +40,9 @@ struct C610Data{
 }M1;
 
 // PID用
-const float	kp = 1.5;
-const float	ki = 2.0;
-const float	kd = 0.01;
+const float	kp = 1.0;
+const float	ki = 0.1;
+const float	kd = 0.0;
 const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 3000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
@@ -79,6 +79,8 @@ int		index = 0;
 
 // pid計算機
 void pid_calculater(void);
+int target = 0;
+int turndirection = 1;
 
 int main(void){
 
@@ -89,14 +91,14 @@ int main(void){
 
 	// PIDいろいろ設定
 	pid.setInputLimits(-18000, 18000);
-	pid.setOutputLimits(-8000, 32000);
+	pid.setOutputLimits(0, 8000);
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
 
 	// LED点灯、電源オフ
     LED.write(1);
-    emergency.write(1);
+    emergency.write(0);
 
 	pc.attach(reader, SerialBase::RxIrq);
 
@@ -108,29 +110,25 @@ int main(void){
             datachange(M1.ID, &M1, &Rxmsg);
         }
 
-		printf("%d %d %d\nue: %d\tsita:%d\nrpm:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read(),M1.rpm); 
+		printf("%d %d %d\n", M1.counts, M1.rpm, M1.current); 
 
 		// // 下半身から照射きたら電源オン
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
 
-		static bool initial_counter = true;
-		if(recv && initial_counter){
-			pid.setSetPoint(32000);
-			emergency.write(0);
-			initial_counter = false;
-		}
         switch(are){
             case 'u':	// ゆっくり上げる
                 // 速度を受け取ったパラメータに合わせる
-                if(ueLimit.read())	pid.setSetPoint(slow_targetRPM);
-                else        		pid.setSetPoint(0);
+                if(ueLimit.read())	target = slow_targetRPM;
+                else        		target = 0;
+				turndirection = 1;
                 break;
             case 'd':	// ゆっくり下げる
                 // 速度を受け取ったパラメータに合わせる
-                if(sitaLimit.read())pid.setSetPoint(-slow_targetRPM);
-                else            	pid.setSetPoint(0);
+                if(sitaLimit.read())target = slow_targetRPM;
+                else            	target = 0;
+				turndirection = -1;
                 break;
             case 't':	// 自動収穫（一定時間上げ下げ）
                 TIMELIMIT = 1000ms;
@@ -262,6 +260,11 @@ void reader(void){
 }
 
 void pid_calculater(void){
-    pid.setProcessValue(M1.rpm);
-    sendData(pid.compute());
+	int nowRPM = M1.rpm;
+	int error_sign = 1;
+	int torqu = 0;
+    pid.setProcessValue(abs(nowRPM));
+	if((target - nowRPM) < 0) error_sign = -1;
+	torqu = pid.compute() * error_sign * turndirection;
+    sendData(torqu);
 }
