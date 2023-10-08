@@ -102,14 +102,14 @@ int main(void){
 
 	pc.attach(reader, SerialBase::RxIrq);
 
-    sendData(0);
 
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
         }
-        printf("%d %d %d\nue: %d\tsita:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read());  
+        printf("%d %d %d\nue: %d\tsita:%d\nrpm:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read(),M1.rpm);  
+        // printf("%d\n", M1.rpm);
 
 		// // 下半身から照射きたら電源オン
 		// if(!PataPataState) 	emergency.write(1);
@@ -119,15 +119,13 @@ int main(void){
         switch(are){
             case 'u':	// ゆっくり上げる
                 // 速度を受け取ったパラメータに合わせる
-                // if(ueLimit) pid.setSetPoint(slow_targetRPM);
-                if(ueLimit.read())  pid.setSetPoint(slow_targetRPM);
-                else                pid.setSetPoint(0);
+                if(ueLimit.read()) pid.setSetPoint(slow_targetRPM);
+                else        pid.setSetPoint(0);
                 break;
             case 'd':	// ゆっくり下げる
                 // 速度を受け取ったパラメータに合わせる
-                // if(sitaLimit)   pid.setSetPoint(-slow_targetRPM);
-                if(sitaLimit.read())pid.setSetPoint(-slow_targetRPM);
-                else                pid.setSetPoint(0);
+                if(sitaLimit.read())   pid.setSetPoint(-slow_targetRPM);
+                else            pid.setSetPoint(0);
                 break;
             case 't':	// 自動収穫（一定時間上げ下げ）
                 TIMELIMIT = 1000ms;
@@ -261,6 +259,6 @@ void reader(void){
 }
 
 void pid_calculater(void){
-	pid.setProcessValue(M1.rpm);
-	sendData(pid.compute());
+    pid.setProcessValue(M1.rpm);
+    sendData(pid.compute());
 }
