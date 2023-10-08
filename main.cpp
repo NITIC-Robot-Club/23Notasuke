@@ -40,9 +40,9 @@ struct C610Data{
 }M1;
 
 // PID用
-const float	kp = 1.5;
-const float	ki = 2.0;
-const float	kd = 0.01;
+const float	kp = 4.0;
+const float	ki = 0.05;
+const float	kd = 0.05;
 const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 3000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
@@ -74,11 +74,15 @@ void goHome(void);
 // シリアル読み
 void	reader(void);
 char	are;	// シリアルのバッファ
+char 	old_are;
 char 	command_from_raspPico[64] = {};
 int		index = 0;
 
 // pid計算機
 void pid_calculater(void);
+int target = 0;
+int turn_direction = 1;
+int torqu = 0;
 
 int main(void){
 
@@ -88,8 +92,8 @@ int main(void){
     can.attach(&canListen, CAN::RxIrq);
 
 	// PIDいろいろ設定
-	pid.setInputLimits(-18000, 18000);
-	pid.setOutputLimits(-8000, 32000);
+	pid.setInputLimits(0, 18000);
+	pid.setOutputLimits(0, 8000);
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
@@ -113,44 +117,40 @@ int main(void){
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
-
-		static bool initial_counter = true;
-		if(recv && initial_counter){
-			pid.setSetPoint(32000);
-			emergency.write(0);
-			initial_counter = false;
+		if(are != old_are){
+			switch(are){
+				case 'u':	// ゆっくり上げる
+					// 速度を受け取ったパラメータに合わせる
+					if(ueLimit.read())	target = slow_targetRPM;
+					else        		target = 0;
+					break;
+				case 'd':	// ゆっくり下げる
+					// 速度を受け取ったパラメータに合わせる
+					if(sitaLimit.read())target = slow_targetRPM;
+					else            	target = 0;
+					break;
+				case 't':	// 自動収穫（一定時間上げ下げ）
+					TIMELIMIT = 1000ms;
+					tryer(TIMELIMIT);
+					break;
+				case 'n':	// 一定まで上げる
+					TIMELIMIT = 1000ms;
+					nullpo(TIMELIMIT);
+					break;
+				case 'g': 	// フタ開閉
+					hutaPakaPaka();
+					break;
+				case 'h':	// 最低点まで下げる
+					goHome();
+					break;
+				default:
+					pid.setSetPoint(0);
+					break;
+			}
 		}
-        switch(are){
-            case 'u':	// ゆっくり上げる
-                // 速度を受け取ったパラメータに合わせる
-                if(ueLimit.read())	pid.setSetPoint(slow_targetRPM);
-                else        		pid.setSetPoint(0);
-                break;
-            case 'd':	// ゆっくり下げる
-                // 速度を受け取ったパラメータに合わせる
-                if(sitaLimit.read())pid.setSetPoint(-slow_targetRPM);
-                else            	pid.setSetPoint(0);
-                break;
-            case 't':	// 自動収穫（一定時間上げ下げ）
-                TIMELIMIT = 1000ms;
-                tryer(TIMELIMIT);
-                break;
-            case 'n':	// 一定まで上げる
-                TIMELIMIT = 1000ms;
-                nullpo(TIMELIMIT);
-                break;
-            case 'g': 	// フタ開閉
-                hutaPakaPaka();
-                break;
-            case 'h':	// 最低点まで下げる
-                goHome();
-                break;
-            default:
-				pid.setSetPoint(0);
-                break;
-        }
         are = '\0';
         memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
+		sendData(torqu);
     }	
 }
 
@@ -200,38 +200,38 @@ void tryer(milliseconds TIMELIMIT){
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
 		while(sitaLimit.read()){
-			pid.setSetPoint(-fast_targetRPM);
+			target = fast_targetRPM;
+			turn_direction = -1;
 		}
-		pid.setSetPoint(0);
+		turn_direction = 0;
 		ThisThread::sleep_for(10ms);
 	}
 
-	// 一定時間上げる or 上限まで上げる
+	// 上限まで上げる
 	while(ueLimit.read()){
-		pid.setSetPoint(fast_targetRPM);
+		target = fast_targetRPM;
+		turn_direction = 1;
 	}
 
-    pid.setSetPoint(0);
+	turn_direction = 0;
     ThisThread::sleep_for(100ms);
 
 	// 一定時間下げる or 下限まで下げる
 	while(sitaLimit.read()){
-		pid.setSetPoint(-1 * fast_targetRPM);
+		target = fast_targetRPM;
+		turn_direction = -1;
 	}
-    time.stop();
-	// time.reset();
-
-	pid.setSetPoint(0);
+	turn_direction = 0;
 }
 
 void nullpo(milliseconds TIMELIMIT){ // ガッ
 	Timer time;
 
-	while(time.elapsed_time() <= TIMELIMIT && ueLimit){
-		pid.setSetPoint(fast_targetRPM);
+	while(ueLimit.read()){
+		target = fast_targetRPM;
+		turn_direction = 1;
 	}
-
-	pid.setSetPoint(0);
+	turn_direction = 0;
 }
 
 void hutaPakaPaka(void){
@@ -242,25 +242,16 @@ void hutaPakaPaka(void){
 
 void goHome(void){
 	Timer time;
-
-	time.start();
-
-	// リミス死亡時のときのために一応時間制御もつけておく
-	// これは収穫時のTIMELIMITとは異なるため注意
-	while(time.elapsed_time() <= 3s && sitaLimit){
-		pid.setSetPoint(-1 * fast_targetRPM);
+	while(sitaLimit){
+		target = fast_targetRPM;
+		turn_direction = -1;
 	}
-	time.reset();
 
-	pid.setSetPoint(0);
-}
-
-void pid_calculater(void){
-    pid.setProcessValue(M1.rpm);
-    sendData(pid.compute());
+	turn_direction = 0;
 }
 
 void reader(){
+	old_are = are;
     raspPico.read(&are,1);
     command_from_raspPico[index] = are;
     index++;
@@ -269,4 +260,13 @@ void reader(){
         index = 0;
         recv = true;
     }
+}
+
+void pid_calculater(void){
+	int nowRPM = M1.rpm;
+	int error_sign = 1;
+	pid.setProcessValue(abs(nowRPM));
+	pid.setSetPoint(target);
+	if((target - nowRPM) < 0) error_sign = -1;
+	torqu = pid.compute() * error_sign * turn_direction;
 }
