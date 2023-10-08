@@ -40,9 +40,9 @@ struct C610Data{
 }M1;
 
 // PID用
-const float	kp = 1.0;
-const float	ki = 0.1;
-const float	kd = 0.0;
+const float	kp = 4.0;
+const float	ki = 0.05;
+const float	kd = 0.05;
 const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 3000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
@@ -74,6 +74,7 @@ void goHome(void);
 // シリアル読み
 void	reader(void);
 char	are;	// シリアルのバッファ
+char	old_are;
 char 	command_from_pc[64] = {};
 int		index = 0;
 
@@ -81,6 +82,7 @@ int		index = 0;
 void pid_calculater(void);
 int target = 0;
 int turndirection = 1;
+int torqu = 0;
 
 int main(void){
 
@@ -90,7 +92,7 @@ int main(void){
     can.attach(&canListen, CAN::RxIrq);
 
 	// PIDいろいろ設定
-	pid.setInputLimits(-18000, 18000);
+	pid.setInputLimits(0, 18000);
 	pid.setOutputLimits(0, 8000);
 
 	// 自動昇降時間制限
@@ -116,40 +118,42 @@ int main(void){
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
-
-        switch(are){
-            case 'u':	// ゆっくり上げる
-                // 速度を受け取ったパラメータに合わせる
-                if(ueLimit.read())	target = slow_targetRPM;
-                else        		target = 0;
-				turndirection = 1;
-                break;
-            case 'd':	// ゆっくり下げる
-                // 速度を受け取ったパラメータに合わせる
-                if(sitaLimit.read())target = slow_targetRPM;
-                else            	target = 0;
-				turndirection = -1;
-                break;
-            case 't':	// 自動収穫（一定時間上げ下げ）
-                TIMELIMIT = 1000ms;
-                tryer(TIMELIMIT);
-                break;
-            case 'n':	// 一定まで上げる
-                TIMELIMIT = 1000ms;
-                nullpo(TIMELIMIT);
-                break;
-            case 'g': 	// フタ開閉
-                hutaPakaPaka();
-                break;
-            case 'h':	// 最低点まで下げる
-                goHome();
-                break;
-            default:
-				pid.setSetPoint(0);
-                break;
-        }
-        are = '\0';
+		if(are != old_are){
+			switch(are){
+				case 'u':	// ゆっくり上げる
+					// 速度を受け取ったパラメータに合わせる
+					if(ueLimit.read())	target = slow_targetRPM;
+					else        		target = 0;
+					turndirection = 1;
+					break;
+				case 'd':	// ゆっくり下げる
+					// 速度を受け取ったパラメータに合わせる
+					if(sitaLimit.read())target = slow_targetRPM;
+					else            	target = 0;
+					turndirection = -1;
+					break;
+				case 't':	// 自動収穫（一定時間上げ下げ）
+					TIMELIMIT = 1000ms;
+					tryer(TIMELIMIT);
+					break;
+				case 'n':	// 一定まで上げる
+					TIMELIMIT = 1000ms;
+					nullpo(TIMELIMIT);
+					break;
+				case 'g': 	// フタ開閉
+					hutaPakaPaka();
+					break;
+				case 'h':	// 最低点まで下げる
+					goHome();
+					break;
+				default:
+					target = 0;
+					break;
+			}
+		}
+        // are = '\0';
         memset(command_from_pc, 0, sizeof(command_from_pc));
+		sendData(torqu);
     }	
 }
 
@@ -255,6 +259,7 @@ void goHome(void){
 }
 
 void reader(void){
+	old_are = are;
 	pc.read(&are, 1);
 	recv = true;
 }
@@ -262,9 +267,8 @@ void reader(void){
 void pid_calculater(void){
 	int nowRPM = M1.rpm;
 	int error_sign = 1;
-	int torqu = 0;
     pid.setProcessValue(abs(nowRPM));
+	pid.setSetPoint(target);
 	if((target - nowRPM) < 0) error_sign = -1;
 	torqu = pid.compute() * error_sign * turndirection;
-    sendData(torqu);
 }
