@@ -88,44 +88,47 @@ int main(void){
     can.attach(&canListen, CAN::RxIrq);
 
 	// PIDいろいろ設定
-	pid.setOutputLimits(-8000, 8000);
 	pid.setInputLimits(-18000, 18000);
-	pid.setSetPoint(0);
-	calculater.attach(pid_calculater ,50ms);
+	pid.setOutputLimits(-8000, 18000);
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
 
-	// LED点灯、電源オン
+	// LED点灯、電源オフ
     LED.write(1);
-    emergency.write(0);
+    emergency.write(1);
 
 	pc.attach(reader, SerialBase::RxIrq);
 
+	calculater.attach(pid_calculater ,50ms);
 
     while(true){
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
         }
-        printf("%d %d %d\nue: %d\tsita:%d\nrpm:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read(),M1.rpm);  
-        // printf("%d\n", M1.rpm);
+
+		printf("%d %d %d\nue: %d\tsita:%d\nrpm:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read(),M1.rpm); 
 
 		// // 下半身から照射きたら電源オン
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
 
+		if(recv){
+			pid.setSetPoint(18000);
+			emergency.write(0);
+		}
         switch(are){
             case 'u':	// ゆっくり上げる
                 // 速度を受け取ったパラメータに合わせる
-                if(ueLimit.read()) pid.setSetPoint(slow_targetRPM);
-                else        pid.setSetPoint(0);
+                if(ueLimit.read())	pid.setSetPoint(slow_targetRPM);
+                else        		pid.setSetPoint(0);
                 break;
             case 'd':	// ゆっくり下げる
                 // 速度を受け取ったパラメータに合わせる
-                if(sitaLimit.read())   pid.setSetPoint(-slow_targetRPM);
-                else            pid.setSetPoint(0);
+                if(sitaLimit.read())pid.setSetPoint(-slow_targetRPM);
+                else            	pid.setSetPoint(0);
                 break;
             case 't':	// 自動収穫（一定時間上げ下げ）
                 TIMELIMIT = 1000ms;
@@ -142,7 +145,7 @@ int main(void){
                 goHome();
                 break;
             default:
-                pid.setSetPoint(0);
+				pid.setSetPoint(0);
                 break;
         }
         are = '\0';
@@ -256,6 +259,7 @@ void goHome(void){
 
 void reader(void){
 	pc.read(&are, 1);
+	recv = true;
 }
 
 void pid_calculater(void){
