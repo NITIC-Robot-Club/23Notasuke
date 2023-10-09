@@ -81,7 +81,7 @@ int		index = 0;
 // pid計算機
 void pid_calculater(void);
 int target = 0;
-int turndirection = 1;
+int turn_direction = 0;
 int torqu = 0;
 
 int main(void){
@@ -93,7 +93,8 @@ int main(void){
 
 	// PIDいろいろ設定
 	pid.setInputLimits(0, 18000);
-	pid.setOutputLimits(0, 8000);
+	pid.setOutputLimits(0, 32000);
+	bool safeParam = false;
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
@@ -118,19 +119,18 @@ int main(void){
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
-		if(are != old_are){
 			switch(are){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
 					if(ueLimit.read())	target = slow_targetRPM;
-					else        		target = 0;
-					turndirection = 1;
+					else        		target = 1000;
+					turn_direction = 1;
 					break;
 				case 'd':	// ゆっくり下げる
 					// 速度を受け取ったパラメータに合わせる
 					if(sitaLimit.read())target = slow_targetRPM;
-					else            	target = 0;
-					turndirection = -1;
+					else            	target = 1000;
+					turn_direction = -1;
 					break;
 				case 't':	// 自動収穫（一定時間上げ下げ）
 					TIMELIMIT = 1000ms;
@@ -147,13 +147,14 @@ int main(void){
 					goHome();
 					break;
 				default:
-					target = 0;
+					safeParam = true;
 					break;
 			}
-		}
         // are = '\0';
-        memset(command_from_pc, 0, sizeof(command_from_pc));
 		sendData(torqu);
+		if(!ueLimit.read() || !sitaLimit.read() || safeParam) sendData(500);
+        memset(command_from_pc, 0, sizeof(command_from_pc));
+		safeParam = false;
     }	
 }
 
@@ -259,7 +260,6 @@ void goHome(void){
 }
 
 void reader(void){
-	old_are = are;
 	pc.read(&are, 1);
 	recv = true;
 }
@@ -270,5 +270,5 @@ void pid_calculater(void){
     pid.setProcessValue(abs(nowRPM));
 	pid.setSetPoint(target);
 	if((target - nowRPM) < 0) error_sign = -1;
-	torqu = pid.compute() * error_sign * turndirection;
+	torqu = pid.compute() * error_sign * turn_direction;
 }
