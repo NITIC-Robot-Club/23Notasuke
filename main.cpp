@@ -94,7 +94,6 @@ int main(void){
 	// PIDいろいろ設定
 	pid.setInputLimits(0, 18000);
 	pid.setOutputLimits(0, 32000);
-	bool safeParam = false;
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
@@ -122,14 +121,12 @@ int main(void){
 			switch(are){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
-					if(ueLimit.read())	target = slow_targetRPM;
-					else        		target = 1000;
+					target = slow_targetRPM;
 					turn_direction = 1;
 					break;
 				case 'd':	// ゆっくり下げる
 					// 速度を受け取ったパラメータに合わせる
-					if(sitaLimit.read())target = slow_targetRPM;
-					else            	target = 1000;
+					target = slow_targetRPM;
 					turn_direction = -1;
 					break;
 				case 't':	// 自動収穫（一定時間上げ下げ）
@@ -147,14 +144,13 @@ int main(void){
 					goHome();
 					break;
 				default:
-					safeParam = true;
 					break;
 			}
         // are = '\0';
+		if(!ueLimit.read() && turn_direction)	target = 0;
+		if(!sitaLimit.read() && -turn_direction)target = 0; 
 		sendData(torqu);
-		if(!ueLimit.read() || !sitaLimit.read() || safeParam) sendData(500);
         memset(command_from_pc, 0, sizeof(command_from_pc));
-		safeParam = false;
     }	
 }
 
