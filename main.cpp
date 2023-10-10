@@ -81,7 +81,7 @@ int		index = 0;
 // pid計算機
 void pid_calculater(void);
 int target = 0;
-int turn_direction = 1;
+int turn_direction = 0;
 int torqu = 0;
 
 int main(void){
@@ -93,7 +93,8 @@ int main(void){
 
 	// PIDいろいろ設定
 	pid.setInputLimits(0, 18000);
-	pid.setOutputLimits(0, 8000);
+	pid.setOutputLimits(0, 32000);
+	bool safeParam = false;
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
@@ -122,12 +123,14 @@ int main(void){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
 					if(ueLimit.read())	target = slow_targetRPM;
-					else        		target = 0;
+					else        		target = 1000;
+					turn_direction = 1;
 					break;
 				case 'd':	// ゆっくり下げる
 					// 速度を受け取ったパラメータに合わせる
 					if(sitaLimit.read())target = slow_targetRPM;
-					else            	target = 0;
+					else            	target = 1000;
+					turn_direction = -1;
 					break;
 				case 't':	// 自動収穫（一定時間上げ下げ）
 					TIMELIMIT = 1000ms;
@@ -144,13 +147,15 @@ int main(void){
 					goHome();
 					break;
 				default:
-					pid.setSetPoint(0);
+					safeParam = true;
 					break;
 			}
 		}
         are = '\0';
-        memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
 		sendData(torqu);
+		if(!ueLimit.read() || !sitaLimit.read() || safeParam) sendData(500);
+		safeParam = false;
+        memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
     }	
 }
 
