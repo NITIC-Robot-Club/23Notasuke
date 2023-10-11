@@ -43,7 +43,7 @@ struct C610Data{
 const float	kp = 4.0;
 const float	ki = 0.05;
 const float	kd = 0.05;
-const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
+const int 	slow_targetRPM = 10000; 	// 手動昇降目標値[rpm]
 const int 	fast_targetRPM = 3000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
 PID			pid(kp, ki, kd, 0.05);
@@ -129,6 +129,9 @@ int main(void){
 					target = slow_targetRPM;
 					turn_direction = -1;
 					break;
+                case 'b':   // 上げ下げブレーキ
+                    target = 0;
+                    turn_direction = 0;
 				case 't':	// 自動収穫（一定時間上げ下げ）
 					TIMELIMIT = 1000ms;
 					tryer(TIMELIMIT);
@@ -143,12 +146,9 @@ int main(void){
 				case 'h':	// 最低点まで下げる
 					goHome();
 					break;
-				default:
-					break;
 			}
-        // are = '\0';
-		if(!ueLimit.read() && turn_direction)	target = 0;
-		if(!sitaLimit.read() && -turn_direction)target = 0; 
+		if(!ueLimit.read() && turn_direction == 1)	target = 0;
+		if(!sitaLimit.read() && turn_direction == -1)target = 0; 
 		sendData(torqu);
         memset(command_from_pc, 0, sizeof(command_from_pc));
     }	
