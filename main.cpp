@@ -94,7 +94,6 @@ int main(void){
 	// PIDいろいろ設定
 	pid.setInputLimits(0, 18000);
 	pid.setOutputLimits(0, 32000);
-	bool safeParam = false;
 
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
@@ -118,20 +117,20 @@ int main(void){
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
-		if(are != old_are){
 			switch(are){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
-					if(ueLimit.read())	target = slow_targetRPM;
-					else        		target = 1000;
+					target = slow_targetRPM;
 					turn_direction = 1;
 					break;
 				case 'd':	// ゆっくり下げる
 					// 速度を受け取ったパラメータに合わせる
-					if(sitaLimit.read())target = slow_targetRPM;
-					else            	target = 1000;
+					target = slow_targetRPM;
 					turn_direction = -1;
 					break;
+                case 'b':
+                    target = 0;
+                    turn_direction = 0;
 				case 't':	// 自動収穫（一定時間上げ下げ）
 					TIMELIMIT = 1000ms;
 					tryer(TIMELIMIT);
@@ -146,15 +145,10 @@ int main(void){
 				case 'h':	// 最低点まで下げる
 					goHome();
 					break;
-				default:
-					safeParam = true;
-					break;
 			}
-		}
-        are = '\0';
+        if(!ueLimit.read()      && turn_direction == 1)     target = 0;
+        if(!sitaLimit.read()    && turn_direction == -1)    target = 0;
 		sendData(torqu);
-		if(!ueLimit.read() || !sitaLimit.read() || safeParam) sendData(500);
-		safeParam = false;
         memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
     }	
 }
