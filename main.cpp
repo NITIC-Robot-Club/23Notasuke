@@ -193,8 +193,6 @@ void sendData(const int32_t torqu0){
 }
 
 void tryer(milliseconds TIMELIMIT){
-    Timer time;
-    milliseconds span;
 
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit){
@@ -202,6 +200,7 @@ void tryer(milliseconds TIMELIMIT){
 			target = fast_targetRPM;
 			turn_direction = -1;
 		}
+        target = 0;
 		turn_direction = 0;
 		ThisThread::sleep_for(10ms);
 	}
@@ -211,7 +210,7 @@ void tryer(milliseconds TIMELIMIT){
 		target = fast_targetRPM;
 		turn_direction = 1;
 	}
-
+    target = 0;
 	turn_direction = 0;
     ThisThread::sleep_for(100ms);
 
@@ -220,6 +219,7 @@ void tryer(milliseconds TIMELIMIT){
 		target = fast_targetRPM;
 		turn_direction = -1;
 	}
+    target = 0;
 	turn_direction = 0;
 }
 
@@ -230,6 +230,7 @@ void nullpo(milliseconds TIMELIMIT){ // ガッ
 		target = fast_targetRPM;
 		turn_direction = 1;
 	}
+    target = 0;
 	turn_direction = 0;
 }
 
@@ -245,7 +246,7 @@ void goHome(void){
 		target = fast_targetRPM;
 		turn_direction = -1;
 	}
-
+    target = 0;
 	turn_direction = 0;
 }
 
