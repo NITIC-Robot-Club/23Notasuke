@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include "PIDcontroller.h"
 
@@ -117,15 +118,17 @@ int main(void){
 		// if(!PataPataState) 	emergency.write(1);
 		// else				emergency.write(0);
 		// ↑pcとの通信時は使わない予定
-			switch(are){
+        if(recv){
+            recv = false;
+			switch(command_from_raspPico[0]){
 				case 'u':	// ゆっくり上げる
 					// 速度を受け取ったパラメータに合わせる
-					target = slow_targetRPM;
+					target = atoi(&command_from_raspPico[1]);
 					turn_direction = 1;
 					break;
 				case 'd':	// ゆっくり下げる
 					// 速度を受け取ったパラメータに合わせる
-					target = slow_targetRPM;
+					target = atoi(&command_from_raspPico[1]);
 					turn_direction = -1;
 					break;
                 case 'b':
@@ -146,6 +149,7 @@ int main(void){
 					goHome();
 					break;
 			}
+        }
         if(!ueLimit.read()      && turn_direction == 1)     target = 0;
         if(!sitaLimit.read()    && turn_direction == -1)    target = 0;
 		sendData(torqu);
@@ -195,7 +199,7 @@ void sendData(const int32_t torqu0){
 void tryer(milliseconds TIMELIMIT){
 
 	// 上限に到達していた場合、ちょっと下げてから
-	if(!ueLimit){
+	if(!ueLimit.read()){
 		while(sitaLimit.read()){
 			target = fast_targetRPM;
 			turn_direction = -1;
