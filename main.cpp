@@ -99,9 +99,9 @@ int main(void){
 	// 自動昇降時間制限
 	milliseconds TIMELIMIT = 1000ms;
 
-	// LED点灯、電源オン
+	// LED点灯、電源オフ
     LED.write(1);
-    emergency.write(0);
+    emergency.write(1);
 
 	calculater.attach(pid_calculater ,50ms);
 
@@ -115,8 +115,8 @@ int main(void){
 		printf("%d %d %d\nue: %d\tsita:%d\nrpm:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read(),M1.rpm); 
 
 		// 下半身から照射きたら電源オン
-		// if(!PataPataState) 	emergency.write(0);
-		// else				emergency.write(1);
+		if(!PataPataState) 	emergency.write(0);
+		else				emergency.write(1);
 
         if(recv){
             recv = false;
