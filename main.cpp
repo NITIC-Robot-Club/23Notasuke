@@ -69,6 +69,7 @@ void tryer(milliseconds);
 void nullpo(milliseconds);
 
 void hutaPakaPaka(void);
+bool isHutaClose = true;
 
 void goHome(void);
 
@@ -240,9 +241,13 @@ void nullpo(milliseconds TIMELIMIT){ // ガッ
 }
 
 void hutaPakaPaka(void){
-	huta_servo.pulsewidth_us(700);
-	ThisThread::sleep_for(2s);
-	huta_servo.pulsewidth_us(2300);
+    if(isHutaClose){
+        isHutaClose = false;
+        huta_servo.pulsewidth_us(700);
+        ThisThread::sleep_for(2s);
+        huta_servo.pulsewidth_us(2300);
+        isHutaClose = true;
+    }
 }
 
 void goHome(void){
