@@ -132,7 +132,7 @@ int main(void){
 					target = atoi(&command_from_raspPico[1]);
 					turn_direction = -1;
 					break;
-                case 'b':
+                case 's':
                     target = 0;
                     turn_direction = 0;
                     break;
