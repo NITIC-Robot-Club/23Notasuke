@@ -134,6 +134,7 @@ int main(void){
                 case 'b':
                     target = 0;
                     turn_direction = 0;
+                    break;
 				case 't':	// 自動収穫（一定時間上げ下げ）
 					TIMELIMIT = 1000ms;
 					tryer(TIMELIMIT);
