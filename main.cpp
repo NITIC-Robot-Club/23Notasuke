@@ -44,8 +44,8 @@ struct C610Data{
 const float	kp = 4.0;
 const float	ki = 0.05;
 const float	kd = 0.05;
-const int 	slow_targetRPM = 2000; 	// 手動昇降目標値[rpm]
-const int 	fast_targetRPM = 3000; 	// 自動一定上げ目標値[rpm]
+const int 	slow_targetRPM = 3000; 	// 手動昇降目標値[rpm]
+const int 	fast_targetRPM = 10000; 	// 自動一定上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
 PID			pid(kp, ki, kd, 0.05);
 
