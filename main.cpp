@@ -1,15 +1,8 @@
 #include "mbed.h"
-#include <chrono>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include "PIDcontroller.h"
 
-using namespace std::chrono;
-
 UnbufferedSerial raspPico(PB_6, PB_7);
-bool recv = false;
+bool recv = false; // シリアル受信確認
 
 // LED光らせるぜ
 PwmOut	LED	(PB_1);
@@ -24,6 +17,7 @@ DigitalOut	emergency(PB_0);
 // パタパタ接続確認LED
 DigitalIn	PataPataState(PA_0);
 
+// フタ開閉サーボモーター
 PwmOut 		huta_servo(PA_7);
 
 // CAN周り
@@ -31,8 +25,7 @@ RawCAN  can(PA_11, PA_12, 1000000);
 CircularBuffer<CANMessage, 32> queue;
 char RcvData[8] = {0x00};
 
-// CANMessage sendmsg(0x000, TxData, 8, CANData, CANStandard);
-
+// モーターの各種データ
 struct C610Data{
     unsigned ID;
     int32_t counts;
@@ -45,7 +38,7 @@ const float	kp = 4.0;
 const float	ki = 0.05;
 const float	kd = 0.05;
 const int 	slow_targetRPM = 3000; 	// 手動昇降目標値[rpm]
-const int 	fast_targetRPM = 10000; 	// 自動一定上げ目標値[rpm]
+const int 	fast_targetRPM = 10000; 	// 自動上げ目標値[rpm]
 Ticker		calculater;				// pid.conpute()を一定間隔でアレしたい
 PID			pid(kp, ki, kd, 0.05);
 
@@ -62,29 +55,30 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 void sendData(const int32_t torqu0);
 
 
-// 一定上げ
-void tryer(milliseconds);
+// 最高 -> 最低
+void tryer(void);
 
-// 最高-最低上下
-void nullpo(milliseconds);
+// 最高まで上げる
+void nullpo(void);
 
+// フタパカパカ
 void hutaPakaPaka(void);
-bool isHutaClose = true;
+bool isHutaClose = true; // フタ閉じてますかー
 
+// 最低まで下げる
 void goHome(void);
 
 // シリアル読み
 void	reader(void);
-char	are;	// シリアルのバッファ
-char 	old_are;
-char 	command_from_raspPico[64] = {};
-int		index = 0;
+char	are;	    // シリアルのバッファ
+char 	command_from_raspPico[64] = {}; // コマンド文字列
+int		index = 0;                      // ↑の添字用
 
 // pid計算機
 void pid_calculater(void);
-int target = 0;
-int turn_direction = 0;
-int torqu = 0;
+int target = 0;         // 目標回転数
+int turn_direction = 0; // 回転方向 プラスで正転/上昇
+int torqu = 0;          // 最終的に送るデータ
 
 int main(void){
 
@@ -97,22 +91,25 @@ int main(void){
 	pid.setInputLimits(0, 18000);
 	pid.setOutputLimits(0, 32000);
 
-	// 自動昇降時間制限
-	milliseconds TIMELIMIT = 1000ms;
-
 	// LED点灯、電源オフ
     LED.write(1);
     emergency.write(1);
 
+    // PID計算機割り込め
 	calculater.attach(pid_calculater ,50ms);
 
+    // シリアル読み割り込め
     raspPico.attach(reader,SerialBase::RxIrq);
+
     while(true){
+
+        // キューにデータがあったら構造体に格納する
         while(!queue.empty()){
             queue.pop(Rxmsg);
             datachange(M1.ID, &M1, &Rxmsg);
         }
 
+        // なんかみるやつ
 		printf("%d %d %d\nue: %d\tsita:%d\nrpm:%d\n-----\n\n", M1.counts, M1.rpm, M1.current,ueLimit.read(),sitaLimit.read(),M1.rpm); 
 
 		// 下半身から照射きたら電源オン
@@ -136,13 +133,11 @@ int main(void){
                     target = 0;
                     turn_direction = 0;
                     break;
-				case 't':	// 自動収穫（一定時間上げ下げ）
-					TIMELIMIT = 1000ms;
-					tryer(TIMELIMIT);
+				case 't':	// 最高 -> 最低
+					tryer();
 					break;
-				case 'n':	// 一定まで上げる
-					TIMELIMIT = 1000ms;
-					nullpo(TIMELIMIT);
+				case 'n':	// 最高まで上げる
+					nullpo();
 					break;
 				case 'g': 	// フタ開閉
 					hutaPakaPaka();
@@ -152,9 +147,17 @@ int main(void){
 					break;
 			}
         }
+
+        // 上昇時に上限にあたっていないか
         if(!ueLimit.read()      && turn_direction == 1)     target = 0;
+
+        // 下降時に下限にあたっていないか
         if(!sitaLimit.read()    && turn_direction == -1)    target = 0;
+
+        // pid_calculaterの計算結果をこっちで出力
 		sendData(torqu);
+
+        // コマンドリセット
         memset(command_from_raspPico, 0, sizeof(command_from_raspPico));
     }	
 }
@@ -198,7 +201,7 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void tryer(milliseconds TIMELIMIT){
+void tryer(){
 
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit.read()){
@@ -220,7 +223,7 @@ void tryer(milliseconds TIMELIMIT){
 	turn_direction = 0;
     ThisThread::sleep_for(100ms);
 
-	// 一定時間下げる or 下限まで下げる
+	// 下限まで下げる
 	while(sitaLimit.read()){
 		target = fast_targetRPM;
 		turn_direction = -1;
@@ -229,9 +232,7 @@ void tryer(milliseconds TIMELIMIT){
 	turn_direction = 0;
 }
 
-void nullpo(milliseconds TIMELIMIT){ // ガッ
-	Timer time;
-
+void nullpo(){ // ガッ
 	while(ueLimit.read()){
 		target = fast_targetRPM;
 		turn_direction = 1;
@@ -241,6 +242,8 @@ void nullpo(milliseconds TIMELIMIT){ // ガッ
 }
 
 void hutaPakaPaka(void){
+    // 連続で呼び出されてもちゃんと初回の呼び出しから2秒で戻るように
+    // isHutaCloseを使っています
     if(isHutaClose){
         isHutaClose = false;
         huta_servo.pulsewidth_us(700);
@@ -251,7 +254,6 @@ void hutaPakaPaka(void){
 }
 
 void goHome(void){
-	Timer time;
 	while(sitaLimit){
 		target = fast_targetRPM;
 		turn_direction = -1;
@@ -261,10 +263,12 @@ void goHome(void){
 }
 
 void reader(){
-	old_are = are;
+    // 1文字読んでコマンド列に格納
     raspPico.read(&are,1);
     command_from_raspPico[index] = are;
     index++;
+
+    // 改行コードが来た -> コマンドのひと区切り
     if(command_from_raspPico[index - 1] == '\n'){
         command_from_raspPico[index] = '\0';
         index = 0;
@@ -275,8 +279,16 @@ void reader(){
 void pid_calculater(void){
 	int nowRPM = M1.rpm;
 	int error_sign = 1;
+
+    // 現在の回転数を絶対値で取得
 	pid.setProcessValue(abs(nowRPM));
+
+    // 目標値も絶対値
 	pid.setSetPoint(target);
+
+    // 目標までの差が負: 減速しなきゃいけないとき
 	if((target - nowRPM) < 0) error_sign = -1;
+
+    // 符号込みで計算
 	torqu = pid.compute() * error_sign * turn_direction;
 }
