@@ -61,10 +61,10 @@ void TorqueToBytes(uint16_t torqu, unsigned char *upper, unsigned char *lower);
 void sendData(const int32_t torqu0);
 
 
-// 一定上げ
+// 最高 - 最低
 void tryer();
 
-// 最高-最低上下
+// 最高まで
 void nullpo();
 
 void hutaPakaPaka(void);
