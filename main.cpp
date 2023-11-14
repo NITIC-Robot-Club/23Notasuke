@@ -1,12 +1,6 @@
 #include "mbed.h"
-#include <chrono>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include "PIDcontroller.h"
 
-using namespace std::chrono;
 
 UnbufferedSerial raspPico(PB_6, PB_7, 9600);
 bool recv = false;
@@ -68,10 +62,10 @@ void sendData(const int32_t torqu0);
 
 
 // 一定上げ
-void tryer(milliseconds);
+void tryer();
 
 // 最高-最低上下
-void nullpo(milliseconds);
+void nullpo();
 
 void hutaPakaPaka(void);
 bool isHutaClose = true;
@@ -101,9 +95,6 @@ int main(void){
 	// PIDいろいろ設定
 	pid.setInputLimits(0, 18000);
 	pid.setOutputLimits(0, 32000);
-
-	// 自動昇降時間制限
-	milliseconds TIMELIMIT = 1000ms;
 
 	// LED点灯、電源オフ
     LED.write(1);
@@ -149,13 +140,11 @@ int main(void){
                     printf("stop Done\n");
                     break;
 				case 't':	// 自動収穫（一定時間上げ下げ）
-					TIMELIMIT = 1000ms;
-					tryer(TIMELIMIT);
+					tryer();
                     printf("t:Auot Done\n");
 					break;
 				case 'n':	// 一定まで上げる
-					TIMELIMIT = 1000ms;
-					nullpo(TIMELIMIT);
+					nullpo();
                     printf("n: to limit Done\n");
 					break;
 				case 'g': 	// フタ開閉
@@ -217,7 +206,7 @@ void sendData(const int32_t torqu0){
     can.write(msg);
 }
 
-void tryer(milliseconds TIMELIMIT){
+void tryer(){
 
 	// 上限に到達していた場合、ちょっと下げてから
 	if(!ueLimit.read()){
@@ -249,7 +238,7 @@ void tryer(milliseconds TIMELIMIT){
 	turn_direction = 0;
 }
 
-void nullpo(milliseconds TIMELIMIT){ // ガッ
+void nullpo(){ // ガッ
 	Timer time;
 
 	while(ueLimit.read()){
